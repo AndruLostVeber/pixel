@@ -1,0 +1,90 @@
+"""FastAPI backend for PixelForge."""
+from __future__ import annotations
+
+import base64
+import io
+import time
+from pathlib import Path
+from typing import List, Optional
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+
+from .generate import get_generator
+from .pixelify import pixelify
+
+ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = ROOT / "frontend"
+OUTPUTS_DIR = ROOT / "outputs"
+OUTPUTS_DIR.mkdir(exist_ok=True)
+
+app = FastAPI(title="PixelForge")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class GenerateRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=300)
+    grid_size: int = Field(32, ge=16, le=96)
+    n_colors: int = Field(12, ge=4, le=32)
+    steps: int = Field(25, ge=8, le=50)
+    seed: Optional[int] = None
+
+
+class GenerateResponse(BaseModel):
+    prompt: str
+    grid_size: int
+    palette: List[str]
+    indices: List[List[int]]
+    preview_b64: str
+    elapsed_sec: float
+
+
+def _img_to_b64(img) -> str:
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+@app.post("/api/generate", response_model=GenerateResponse)
+def api_generate(req: GenerateRequest):
+    t0 = time.time()
+    try:
+        gen = get_generator()
+        raw = gen.generate(req.prompt, steps=req.steps, seed=req.seed)
+        result = pixelify(raw, grid_size=req.grid_size, n_colors=req.n_colors)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    ts = int(time.time())
+    raw.save(OUTPUTS_DIR / f"{ts}_raw.png")
+    result.grid_upscaled.save(OUTPUTS_DIR / f"{ts}_pixel.png")
+
+    return GenerateResponse(
+        prompt=req.prompt,
+        grid_size=result.grid_size,
+        palette=result.palette_hex,
+        indices=result.color_indices,
+        preview_b64=_img_to_b64(result.grid_upscaled),
+        elapsed_sec=round(time.time() - t0, 2),
+    )
+
+
+@app.get("/api/health")
+def health():
+    return {"ok": True}
+
+
+@app.get("/")
+def index():
+    return FileResponse(FRONTEND_DIR / "index.html")
+
+
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")

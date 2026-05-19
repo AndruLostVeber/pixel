@@ -1,0 +1,29 @@
+# venv
+.venv/
+venv/
+env/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# модели и кеш (тяжёлые, не для git)
+models_cache/
+*.safetensors
+*.ckpt
+*.bin
+
+# выходные картинки
+outputs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
