@@ -5,21 +5,25 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from diffusers import StableDiffusionXLPipeline, EulerDiscreteScheduler
+from diffusers import StableDiffusionXLPipeline, EulerDiscreteScheduler, AutoencoderKL
 from PIL import Image
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "models_cache"
 
 BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
+VAE_REPO = "madebyollin/sdxl-vae-fp16-fix"
 LORA_REPO = "nerijs/pixel-art-xl"
 LORA_WEIGHT = "pixel-art-xl.safetensors"
 
-PROMPT_PREFIX = "pixel art, "
-PROMPT_SUFFIX = ", 16-bit, retro game asset, vibrant colors, sharp pixels"
+# триггер LoRA — "pixel", в начале промпта
+PROMPT_PREFIX = "pixel, "
+PROMPT_SUFFIX = ""
 NEGATIVE = (
-    "blurry, soft, anti-aliased, photorealistic, smooth gradients, "
-    "3d render, depth of field, realistic, painting"
+    "3d, realistic, photo, photorealistic, blurry, soft, anti-aliased, "
+    "smooth gradients, depth of field, painting, watercolor, low quality, "
+    "tileset, interior, scene, background, multiple subjects, text, watermark"
 )
+DEFAULT_LORA_SCALE = 0.8
 
 
 class PixelArtGenerator:
@@ -32,16 +36,22 @@ class PixelArtGenerator:
     def load(self) -> None:
         if self._pipe is not None:
             return
+        vae = AutoencoderKL.from_pretrained(
+            VAE_REPO, torch_dtype=self.dtype, cache_dir=CACHE_DIR
+        )
         pipe = StableDiffusionXLPipeline.from_pretrained(
             BASE_MODEL,
             torch_dtype=self.dtype,
             variant="fp16",
             use_safetensors=True,
             cache_dir=CACHE_DIR,
+            vae=vae,
         )
         pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config)
-        pipe.load_lora_weights(LORA_REPO, weight_name=LORA_WEIGHT, cache_dir=CACHE_DIR)
-        pipe.fuse_lora(lora_scale=1.0)
+        # не fuse — оставляем scale управляемым через cross_attention_kwargs
+        pipe.load_lora_weights(
+            LORA_REPO, weight_name=LORA_WEIGHT, cache_dir=CACHE_DIR, adapter_name="pixel"
+        )
         pipe.to(self.device)
         pipe.set_progress_bar_config(disable=True)
         self._pipe = pipe
@@ -50,11 +60,12 @@ class PixelArtGenerator:
         self,
         prompt: str,
         *,
-        steps: int = 25,
-        guidance: float = 7.5,
+        steps: int = 28,
+        guidance: float = 7.0,
         width: int = 1024,
         height: int = 1024,
         seed: Optional[int] = None,
+        lora_scale: float = DEFAULT_LORA_SCALE,
     ) -> Image.Image:
         if self._pipe is None:
             self.load()
@@ -70,6 +81,7 @@ class PixelArtGenerator:
             width=width,
             height=height,
             generator=generator,
+            cross_attention_kwargs={"scale": float(lora_scale)},
         )
         return out.images[0]
 

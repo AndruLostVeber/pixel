@@ -238,6 +238,7 @@ async function generate() {
   const grid_size = +$("grid_size").value;
   const n_colors = +$("n_colors").value;
   const steps = +$("steps").value;
+  const lora_scale = +$("lora_scale").value;
 
   $("status-text").textContent = "🎨 Генерируем... первый запуск долгий (грузим SDXL)";
   $("status").classList.remove("hidden");
@@ -247,7 +248,7 @@ async function generate() {
     const r = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, grid_size, n_colors, steps }),
+      body: JSON.stringify({ prompt, grid_size, n_colors, steps, lora_scale }),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({ detail: r.statusText }));

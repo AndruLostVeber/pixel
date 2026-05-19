@@ -34,7 +34,9 @@ class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=300)
     grid_size: int = Field(32, ge=16, le=96)
     n_colors: int = Field(12, ge=4, le=32)
-    steps: int = Field(25, ge=8, le=50)
+    steps: int = Field(28, ge=8, le=50)
+    lora_scale: float = Field(0.8, ge=0.0, le=1.5)
+    guidance: float = Field(7.0, ge=1.0, le=15.0)
     seed: Optional[int] = None
 
 
@@ -58,7 +60,13 @@ def api_generate(req: GenerateRequest):
     t0 = time.time()
     try:
         gen = get_generator()
-        raw = gen.generate(req.prompt, steps=req.steps, seed=req.seed)
+        raw = gen.generate(
+            req.prompt,
+            steps=req.steps,
+            seed=req.seed,
+            lora_scale=req.lora_scale,
+            guidance=req.guidance,
+        )
         result = pixelify(raw, grid_size=req.grid_size, n_colors=req.n_colors)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
