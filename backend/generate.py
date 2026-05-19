@@ -14,13 +14,15 @@ BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
 LORA_REPO = "nerijs/pixel-art-xl"
 LORA_WEIGHT = "pixel-art-xl.safetensors"
 
-# триггер LoRA — "pixel", в начале промпта
+# триггер LoRA — "pixel", в начале; явный single-object режим в суффиксе
 PROMPT_PREFIX = "pixel, "
-PROMPT_SUFFIX = ""
+PROMPT_SUFFIX = ", single object, centered, isolated, plain flat background"
 NEGATIVE = (
     "3d, realistic, photo, photorealistic, blurry, soft, anti-aliased, "
     "smooth gradients, depth of field, painting, watercolor, low quality, "
-    "tileset, interior, scene, background, multiple subjects, text, watermark"
+    "tileset, sprite sheet, sprite atlas, grid, multiple objects, multiple items, "
+    "collection, set, repeating pattern, duplicate, scene, interior, landscape, "
+    "text, watermark, signature"
 )
 DEFAULT_LORA_SCALE = 0.8
 
