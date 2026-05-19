@@ -5,13 +5,12 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from diffusers import StableDiffusionXLPipeline, EulerDiscreteScheduler, AutoencoderKL
+from diffusers import StableDiffusionXLPipeline, EulerDiscreteScheduler
 from PIL import Image
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "models_cache"
 
 BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
-VAE_REPO = "madebyollin/sdxl-vae-fp16-fix"
 LORA_REPO = "nerijs/pixel-art-xl"
 LORA_WEIGHT = "pixel-art-xl.safetensors"
 
@@ -36,16 +35,12 @@ class PixelArtGenerator:
     def load(self) -> None:
         if self._pipe is not None:
             return
-        vae = AutoencoderKL.from_pretrained(
-            VAE_REPO, torch_dtype=self.dtype, cache_dir=CACHE_DIR
-        )
         pipe = StableDiffusionXLPipeline.from_pretrained(
             BASE_MODEL,
             torch_dtype=self.dtype,
             variant="fp16",
             use_safetensors=True,
             cache_dir=CACHE_DIR,
-            vae=vae,
         )
         pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config)
         # не fuse — оставляем scale управляемым через cross_attention_kwargs
