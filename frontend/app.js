@@ -18,11 +18,7 @@ const state = {
   hintCellsToRedraw: new Set(),
   previewB64: null,
   startedAt: null,
-  // drag-to-paint
-  isDragging: false,
-  dragMode: false,             // false = click-to-paint (дефолт), true = drag-to-paint
   hoverCell: null,             // {x,y} текущая клетка под курсором
-  lastPaintedCell: null,       // не штрафуем повторно за одну клетку в одном страйке
   // tool
   tool: "brush",               // "brush" | "bucket" | "eraser"
   // combo / pulse
@@ -35,17 +31,18 @@ const state = {
 
 function clearCanvas() {
   ctx.fillStyle = "#f7f7f0";
-  ctx.fillRect(0, 0, CANVAS_PX, CANVAS_PX);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
 function drawGrid() {
   const { gridSize, cellPx } = state;
   ctx.strokeStyle = "#d8d6c8";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = Math.max(1, cellPx / 24);   // толщина линий растёт с буфером, остаётся видимой на CSS-px
+  const total = gridSize * cellPx;
   for (let i = 0; i <= gridSize; i++) {
     const p = Math.round(i * cellPx) + 0.5;
-    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, CANVAS_PX); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(CANVAS_PX, p); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, total); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(total, p); ctx.stroke();
   }
 }
 
@@ -129,8 +126,7 @@ function drawHover() {
 
 let animLoopRunning = false;
 function animLoop() {
-  // всегда перерисуй если есть pulses ИЛИ hover
-  if (state.pulses.length || state.hoverCell || state.isDragging) {
+  if (state.pulses.length || state.hoverCell) {
     drawFilledCells();
     drawPulses();
     drawGrid();
@@ -200,11 +196,12 @@ function selectColor(i) {
 /* ---------- interactions ---------- */
 
 function cellFromEvent(ev) {
+  if (!state.gridSize) return null;
   const rect = canvas.getBoundingClientRect();
-  const px = (ev.clientX - rect.left) * (CANVAS_PX / rect.width);
-  const py = (ev.clientY - rect.top) * (CANVAS_PX / rect.height);
-  const x = Math.floor(px / state.cellPx);
-  const y = Math.floor(py / state.cellPx);
+  const cssCell = rect.width / state.gridSize;
+  if (cssCell <= 0) return null;
+  const x = Math.floor((ev.clientX - rect.left) / cssCell);
+  const y = Math.floor((ev.clientY - rect.top) / cssCell);
   if (x < 0 || y < 0 || x >= state.gridSize || y >= state.gridSize) return null;
   return { x, y };
 }
@@ -273,15 +270,6 @@ function doBrushClick(x, y) {
   }
 }
 
-function doBrushDrag(x, y) {
-  // движение мыши с зажатой кнопкой — без штрафа (просто не красит неверные)
-  const key = `${x},${y}`;
-  if (state.lastPaintedCell === key) return;
-  state.lastPaintedCell = key;
-  const res = paintCell(x, y);
-  if (res === "hit") applyHit();
-}
-
 function doEraser(x, y) {
   if (!state.filled[y][x]) return;
   state.filled[y][x] = false;
@@ -337,48 +325,27 @@ function doBucket(x, y) {
 }
 
 function handleMouseDown(ev) {
-  if (ev.button !== 0) return;
+  if (ev.button !== 0 && ev.button !== -1) return;
   const cell = cellFromEvent(ev);
   if (!cell) return;
-
-  if (state.tool === "eraser") {
-    doEraser(cell.x, cell.y);
-    state.isDragging = state.dragMode;
-    state.lastPaintedCell = `${cell.x},${cell.y}`;
-    return;
-  }
-  if (state.tool === "bucket") {
-    doBucket(cell.x, cell.y);
-    return;
-  }
-  // brush
+  if (state.tool === "eraser") { doEraser(cell.x, cell.y); return; }
+  if (state.tool === "bucket") { doBucket(cell.x, cell.y); return; }
+  // brush — только один клик, никакого drag
   if (state.selectedColor == null) return;
   doBrushClick(cell.x, cell.y);
-  state.isDragging = state.dragMode;
-  state.lastPaintedCell = `${cell.x},${cell.y}`;
 }
 
 function handleMouseMove(ev) {
+  // только обновляем hover-индикатор, никакого закрашивания
   const cell = cellFromEvent(ev);
   const prev = state.hoverCell;
   state.hoverCell = cell;
   if (!prev || !cell || prev.x !== cell.x || prev.y !== cell.y) kickAnim();
-  if (!state.isDragging || !cell) return;
-  if (state.tool === "eraser") {
-    doEraser(cell.x, cell.y);
-  } else if (state.tool === "brush" && state.selectedColor != null) {
-    doBrushDrag(cell.x, cell.y);
-  }
 }
 
-function handleMouseUp() {
-  state.isDragging = false;
-  state.lastPaintedCell = null;
-}
+function handleMouseUp() { /* no-op — drag не используется */ }
 
 function handleMouseLeave() {
-  state.isDragging = false;
-  state.lastPaintedCell = null;
   state.hoverCell = null;
   repaint();
 }
@@ -554,7 +521,6 @@ async function generate() {
 
 function loadResult(data) {
   state.gridSize = data.grid_size;
-  state.cellPx = CANVAS_PX / data.grid_size;
   state.palette = data.palette;
   state.indices = data.indices;
   state.filled = data.indices.map((row) => row.map(() => false));
@@ -577,6 +543,7 @@ function loadResult(data) {
   $("hint-btn").disabled = true;
 
   buildPalette();
+  applyZoom();   // пересчитываем буфер canvas под новый gridSize
   updateProgress();
   repaint();
   scheduleSave();
@@ -725,15 +692,31 @@ function buildPresets() {
 }
 buildPresets();
 
-/* ---------- zoom ---------- */
+/* ---------- zoom (внутренний буфер растёт с CSS, цифры остаются чёткими) ---------- */
 const ZOOM_LEVELS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
 let zoomIdx = 2;   // 1.0
 function applyZoom() {
   const z = ZOOM_LEVELS[zoomIdx];
-  canvas.style.width = (CANVAS_PX * z) + "px";
-  canvas.style.height = (CANVAS_PX * z) + "px";
+  const cssSize = CANVAS_PX * z;
+  canvas.style.width = cssSize + "px";
+  canvas.style.height = cssSize + "px";
   $("zoom-reset").textContent = Math.round(z * 100) + "%";
   try { localStorage.setItem("pixelforge:zoom", String(zoomIdx)); } catch (_) {}
+
+  if (!state.gridSize) {
+    canvas.width = CANVAS_PX;
+    canvas.height = CANVAS_PX;
+    return;
+  }
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  // внутренний буфер кратен gridSize чтобы клетки не "плыли", макс 4096 ради памяти
+  let internal = Math.min(4096, Math.round(cssSize * dpr));
+  internal = Math.floor(internal / state.gridSize) * state.gridSize;
+  if (internal < state.gridSize) internal = state.gridSize;
+  canvas.width = internal;
+  canvas.height = internal;
+  state.cellPx = internal / state.gridSize;
+  repaint();
 }
 function zoomBy(delta) {
   const next = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, zoomIdx + delta));
@@ -758,8 +741,6 @@ applyZoom();
 /* ---------- tool switcher ---------- */
 function selectTool(name) {
   state.tool = name;
-  state.isDragging = false;
-  state.lastPaintedCell = null;
   document.querySelectorAll(".tool-btn").forEach((b) => {
     b.classList.toggle("active", b.dataset.tool === name);
   });
@@ -776,21 +757,8 @@ try {
   if (savedTool && ["brush", "bucket", "eraser"].includes(savedTool)) selectTool(savedTool);
 } catch (_) {}
 
-/* ---------- drag toggle ---------- */
-$("drag-toggle").addEventListener("change", (e) => {
-  state.dragMode = e.target.checked;
-  try { localStorage.setItem("pixelforge:dragMode", e.target.checked ? "1" : "0"); } catch (_) {}
-  FX.toast(state.dragMode ? "Drag-to-paint включён" : "Click-to-paint режим", { kind: "info" });
-});
-try {
-  if (localStorage.getItem("pixelforge:dragMode") === "1") {
-    $("drag-toggle").checked = true;
-    state.dragMode = true;
-  }
-} catch (_) {}
-
-// сброс drag при потере фокуса окна (alt-tab) — иначе isDragging залипает
-window.addEventListener("blur", handleMouseUp);
+// очищаем устаревший флаг (теперь drag режим удалён совсем)
+try { localStorage.removeItem("pixelforge:dragMode"); } catch (_) {}
 
 /* ---------- pointer events: единый путь для мыши и touch ----------
  * Раньше mouse+touch дублировались — на крупных гридах одно нажатие
@@ -1043,7 +1011,6 @@ function loadSession() {
     $("prompt").value = d.prompt || "";
     if (d.backend) $("backend").value = d.backend;
     state.gridSize = d.gridSize;
-    state.cellPx = CANVAS_PX / d.gridSize;
     state.palette = d.palette;
     state.indices = d.indices;
     state.filled = unpackBits(d.filled);
@@ -1062,6 +1029,7 @@ function loadSession() {
     $("preview-btn").disabled = true;   // оригинал не сохранён
     $("reset-btn").disabled = false;
     buildPalette();
+    applyZoom();   // пересчитываем буфер для нового grid
     updateStreak();
     updateProgress();
     repaint();
