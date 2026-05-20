@@ -237,10 +237,14 @@ async function generate() {
   if (!prompt) { alert("Введи промпт"); return; }
   const grid_size = +$("grid_size").value;
   const n_colors = +$("n_colors").value;
-  const steps = +$("steps").value;
-  const lora_scale = +$("lora_scale").value;
+  const backend = $("backend").value;
 
-  $("status-text").textContent = "🎨 Генерируем... первый запуск долгий (грузим SDXL)";
+  const statusText = backend === "local"
+    ? "🎨 Local SDXL... первый раз долго (грузим в VRAM)"
+    : backend === "flux-dev"
+      ? "🎨 FLUX.1-dev рисует... ~10-30 сек"
+      : "🎨 FLUX.1-schnell рисует... ~5 сек";
+  $("status-text").textContent = statusText;
   $("status").classList.remove("hidden");
   $("generate-btn").disabled = true;
 
@@ -248,7 +252,7 @@ async function generate() {
     const r = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, grid_size, n_colors, steps, lora_scale }),
+      body: JSON.stringify({ prompt, backend, grid_size, n_colors }),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({ detail: r.statusText }));

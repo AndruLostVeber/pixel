@@ -5,7 +5,7 @@ import base64
 import io
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .generate import get_generator
+from .nvidia_flux import get_flux_generator
 from .pixelify import pixelify
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,18 +31,23 @@ app.add_middleware(
 )
 
 
+BackendName = Literal["local", "flux-schnell", "flux-dev"]
+
+
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=300)
+    backend: BackendName = "flux-schnell"
     grid_size: int = Field(32, ge=16, le=96)
     n_colors: int = Field(12, ge=4, le=32)
-    steps: int = Field(28, ge=8, le=50)
+    steps: int = Field(4, ge=1, le=50)
     lora_scale: float = Field(0.8, ge=0.0, le=1.5)
-    guidance: float = Field(7.0, ge=1.0, le=15.0)
+    guidance: float = Field(0.0, ge=0.0, le=15.0)
     seed: Optional[int] = None
 
 
 class GenerateResponse(BaseModel):
     prompt: str
+    backend: str
     grid_size: int
     palette: List[str]
     indices: List[List[int]]
@@ -59,14 +65,24 @@ def _img_to_b64(img) -> str:
 def api_generate(req: GenerateRequest):
     t0 = time.time()
     try:
-        gen = get_generator()
-        raw = gen.generate(
-            req.prompt,
-            steps=req.steps,
-            seed=req.seed,
-            lora_scale=req.lora_scale,
-            guidance=req.guidance,
-        )
+        if req.backend == "local":
+            gen = get_generator()
+            raw = gen.generate(
+                req.prompt,
+                steps=req.steps if req.steps >= 8 else 28,
+                seed=req.seed,
+                lora_scale=req.lora_scale,
+                guidance=req.guidance if req.guidance >= 1.0 else 7.0,
+            )
+        else:
+            flux_prompt = f"{req.prompt}, pixel art, 16-bit retro game sprite, flat colors"
+            flux_gen = get_flux_generator(req.backend)
+            raw = flux_gen.generate(
+                flux_prompt,
+                steps=req.steps if req.backend == "flux-schnell" else max(req.steps, 25),
+                guidance=req.guidance,
+                seed=req.seed,
+            )
         result = pixelify(raw, grid_size=req.grid_size, n_colors=req.n_colors)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -77,6 +93,7 @@ def api_generate(req: GenerateRequest):
 
     return GenerateResponse(
         prompt=req.prompt,
+        backend=req.backend,
         grid_size=result.grid_size,
         palette=result.palette_hex,
         indices=result.color_indices,

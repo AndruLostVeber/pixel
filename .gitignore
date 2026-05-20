@@ -27,3 +27,8 @@ outputs/
 # OS
 .DS_Store
 Thumbs.db
+
+# секреты
+.env
+.env.local
+*.key
