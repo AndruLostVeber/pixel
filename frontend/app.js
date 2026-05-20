@@ -481,6 +481,7 @@ async function generate() {
     loadResult(data);
     FX.toast(`Готово за ${data.elapsed_sec}с · ${data.backend} · ${data.palette.length} цветов`, { kind: "success" });
     window.Achievements && Achievements.notePrompt(prompt);
+    saveHistoryPrompt(prompt);
   } catch (e) {
     FX.toast("Ошибка: " + e.message, { kind: "error", duration: 6000 });
   } finally {
@@ -521,6 +522,45 @@ function loadResult(data) {
 }
 
 /* ---------- init ---------- */
+
+/* ---------- prompt history ---------- */
+const HIST_KEY = "pixelforge:promptHistory";
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY) || "[]"); } catch (_) { return []; }
+}
+function saveHistoryPrompt(prompt) {
+  if (!prompt) return;
+  let h = loadHistory();
+  h = h.filter((p) => p !== prompt);
+  h.unshift(prompt);
+  h = h.slice(0, 20);
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (_) {}
+  refreshHistoryDatalist();
+}
+function refreshHistoryDatalist() {
+  const dl = $("prompt-history");
+  if (!dl) return;
+  dl.innerHTML = "";
+  loadHistory().forEach((p) => {
+    const o = document.createElement("option");
+    o.value = p;
+    dl.appendChild(o);
+  });
+}
+refreshHistoryDatalist();
+
+/* ---------- onboarding (один раз) ---------- */
+function maybeOnboard() {
+  try {
+    if (localStorage.getItem("pixelforge:onboarded") === "1") return;
+  } catch (_) {}
+  setTimeout(() => {
+    FX.toast("👋 Введи промпт или жми 🎲 для случайного. Закрашивай по номерам, держи ЛКМ для drag.", { kind: "info", duration: 8000 });
+    setTimeout(() => FX.toast("Клавиши: G — генерация, R — сброс, 1-9 — цвета, ?/H — справка", { kind: "info", duration: 7000 }), 1100);
+    try { localStorage.setItem("pixelforge:onboarded", "1"); } catch (_) {}
+  }, 600);
+}
+maybeOnboard();
 
 /* ---------- difficulty ---------- */
 const DIFFICULTY = {

@@ -10,7 +10,8 @@
 <header>
   <div class="logo">🎨 PixelForge</div>
   <div class="controls">
-    <input id="prompt" type="text" placeholder="cute red dragon, isometric castle, magic potion bottle..." />
+    <input id="prompt" type="text" list="prompt-history" placeholder="cute red dragon, isometric castle, magic potion bottle..." />
+    <datalist id="prompt-history"></datalist>
     <button id="dice-btn" type="button" class="icon-btn" title="Случайный промпт">🎲</button>
     <label title="FLUX-schnell — быстро (5с) и точно по промпту, через NVIDIA API. Local — SDXL+LoRA на твоей карте.">
       backend
