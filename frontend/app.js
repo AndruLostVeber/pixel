@@ -575,6 +575,25 @@ window.addEventListener("mouseup", handleMouseUp);
 canvas.addEventListener("mouseleave", handleMouseLeave);
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+/* ---------- touch (мобайл) ---------- */
+function touchAsMouse(ev, type) {
+  if (!ev.touches.length && type !== "end") return null;
+  const t = (ev.touches[0] || ev.changedTouches[0]);
+  return { clientX: t.clientX, clientY: t.clientY, button: 0 };
+}
+canvas.addEventListener("touchstart", (ev) => {
+  ev.preventDefault();
+  const fake = touchAsMouse(ev, "start");
+  if (fake) handleMouseDown(fake);
+}, { passive: false });
+canvas.addEventListener("touchmove", (ev) => {
+  ev.preventDefault();
+  const fake = touchAsMouse(ev, "move");
+  if (fake) handleMouseMove(fake);
+}, { passive: false });
+canvas.addEventListener("touchend", () => handleMouseUp(), { passive: false });
+canvas.addEventListener("touchcancel", () => handleMouseUp(), { passive: false });
+
 /* ---------- dice (рандом промпт) ---------- */
 $("dice-btn").addEventListener("click", () => {
   if (!PRESETS.length) return;
@@ -728,6 +747,8 @@ function loadSession() {
     updateStreak();
     updateProgress();
     repaint();
+    startTimer();
+    $("download-btn").disabled = false;
     return true;
   } catch (_) { return false; }
 }
