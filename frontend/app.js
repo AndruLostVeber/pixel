@@ -372,7 +372,62 @@ function updateProgress() {
   $("progress-fill").style.width = pct.toFixed(1) + "%";
 }
 
+/* ---------- live timer ---------- */
+let timerHandle = null;
+function startTimer() {
+  stopTimer();
+  state.startedAt = performance.now();
+  $("timer").textContent = "0:00";
+  timerHandle = setInterval(() => {
+    if (!state.startedAt) return;
+    const sec = Math.floor((performance.now() - state.startedAt) / 1000);
+    const mm = Math.floor(sec / 60), ss = sec % 60;
+    $("timer").textContent = `${mm}:${String(ss).padStart(2, "0")}`;
+  }, 1000);
+}
+function stopTimer() {
+  if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
+}
+
+/* ---------- download рагулированной картинки ---------- */
+function downloadPainted() {
+  if (!state.gridSize) return;
+  // рисуем в offscreen canvas: только закрашенные клетки на белом фоне
+  const off = document.createElement("canvas");
+  off.width = state.gridSize;
+  off.height = state.gridSize;
+  const octx = off.getContext("2d");
+  octx.fillStyle = "#f7f7f0";
+  octx.fillRect(0, 0, off.width, off.height);
+  for (let y = 0; y < state.gridSize; y++) {
+    for (let x = 0; x < state.gridSize; x++) {
+      if (state.filled[y][x]) {
+        octx.fillStyle = state.palette[state.indices[y][x]];
+        octx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+  // апскейл x16 nearest
+  const big = document.createElement("canvas");
+  const SCALE = 16;
+  big.width = state.gridSize * SCALE;
+  big.height = state.gridSize * SCALE;
+  const bctx = big.getContext("2d");
+  bctx.imageSmoothingEnabled = false;
+  bctx.drawImage(off, 0, 0, big.width, big.height);
+  big.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pixelforge_${Date.now()}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+    FX.toast("PNG сохранён", { kind: "success" });
+  }, "image/png");
+}
+
 function onFinish() {
+  stopTimer();
   const ms = performance.now() - state.startedAt;
   const sec = Math.round(ms / 1000);
   const mm = Math.floor(sec / 60);
@@ -448,10 +503,12 @@ function loadResult(data) {
   state.streak = 0;
   state.pulses = [];
   updateStreak();
+  startTimer();
 
   $("errors-count").textContent = 0;
   $("preview-btn").disabled = false;
   $("reset-btn").disabled = false;
+  $("download-btn").disabled = false;
   $("hint-btn").disabled = true;
   $("autofill-btn").disabled = true;
 
@@ -517,6 +574,70 @@ canvas.addEventListener("mousemove", handleMouseMove);
 window.addEventListener("mouseup", handleMouseUp);
 canvas.addEventListener("mouseleave", handleMouseLeave);
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+/* ---------- dice (рандом промпт) ---------- */
+$("dice-btn").addEventListener("click", () => {
+  if (!PRESETS.length) return;
+  const r = PRESETS[(Math.random() * PRESETS.length) | 0];
+  $("prompt").value = r[1];
+  $("prompt").focus();
+  window.FX && FX.select();
+});
+
+/* ---------- download ---------- */
+$("download-btn").addEventListener("click", downloadPainted);
+
+/* ---------- trophy modal ---------- */
+function openTrophy() {
+  const list = $("trophy-list");
+  list.innerHTML = "";
+  const owned = window.Achievements ? Achievements.owned() : {};
+  Achievements.LIST.forEach((a) => {
+    const row = document.createElement("div");
+    const got = !!owned[a.id];
+    row.className = "trophy-row" + (got ? " got" : "");
+    row.innerHTML = `
+      <div class="trophy-icon">${got ? a.icon : "🔒"}</div>
+      <div class="trophy-text">
+        <div class="trophy-name">${a.name}</div>
+        <div class="trophy-desc">${a.desc}</div>
+      </div>`;
+    list.appendChild(row);
+  });
+  $("trophy-modal").classList.remove("hidden");
+}
+$("trophy-btn").addEventListener("click", openTrophy);
+$("trophy-close").addEventListener("click", () => $("trophy-modal").classList.add("hidden"));
+
+/* ---------- keyboard shortcuts ---------- */
+document.addEventListener("keydown", (e) => {
+  if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === "Escape") {
+    $("finish-modal").classList.add("hidden");
+    $("trophy-modal").classList.add("hidden");
+    return;
+  }
+  switch (e.key.toLowerCase()) {
+    case "g": $("generate-btn").click(); break;
+    case "r": if (!$("reset-btn").disabled) handleReset(); break;
+    case "h": if (!$("hint-btn").disabled) handleHint(); break;
+    case "a": if (!$("autofill-btn").disabled) handleAutofill(); break;
+    case "p": if (!$("preview-btn").disabled) handlePreview(); break;
+    case "d": if (!$("download-btn").disabled) downloadPainted(); break;
+    case "m": $("sound-toggle").click(); break;
+    case "?":
+    case "/":
+      FX.toast("Клавиши: G ген, R сброс, H хинт, A залить, P оригинал, D скачать, M звук, Esc — закрыть", { kind: "info", duration: 6000 });
+      break;
+    default:
+      // 1-9 = выбор цвета
+      if (e.key >= "1" && e.key <= "9") {
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx < state.palette.length) selectColor(idx);
+      }
+  }
+});
 $("generate-btn").addEventListener("click", generate);
 $("hint-btn").addEventListener("click", handleHint);
 $("autofill-btn").addEventListener("click", handleAutofill);

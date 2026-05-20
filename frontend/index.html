@@ -11,6 +11,7 @@
   <div class="logo">🎨 PixelForge</div>
   <div class="controls">
     <input id="prompt" type="text" placeholder="cute red dragon, isometric castle, magic potion bottle..." />
+    <button id="dice-btn" type="button" class="icon-btn" title="Случайный промпт">🎲</button>
     <label title="FLUX-schnell — быстро (5с) и точно по промпту, через NVIDIA API. Local — SDXL+LoRA на твоей карте.">
       backend
       <select id="backend">
@@ -41,6 +42,7 @@
       <div class="progress-num"><span id="filled-count">0</span> / <span id="total-count">0</span></div>
       <div class="progress-bar"><div id="progress-fill"></div></div>
       <div class="stats-row">
+        <span class="stat-chip">⏱ <span id="timer">0:00</span></span>
         <span class="stat-chip">🔥 <span id="streak-count">0</span></span>
         <span class="stat-chip">★ <span id="best-streak">0</span></span>
         <span class="stat-chip stat-err">⚠ <span id="errors-count">0</span></span>
@@ -50,16 +52,26 @@
     <div id="palette" class="palette"></div>
 
     <div class="actions">
-      <button id="hint-btn" disabled>💡 Подсветить выбранный</button>
-      <button id="autofill-btn" disabled>⚡ Залить выбранный</button>
-      <button id="preview-btn" disabled>👁 Оригинал</button>
-      <button id="reset-btn" disabled>↺ Сбросить раскраску</button>
+      <button id="hint-btn" disabled>💡 Подсветить выбранный <kbd>H</kbd></button>
+      <button id="autofill-btn" disabled>⚡ Залить выбранный <kbd>A</kbd></button>
+      <button id="preview-btn" disabled>👁 Оригинал <kbd>P</kbd></button>
+      <button id="download-btn" disabled>💾 Скачать PNG <kbd>D</kbd></button>
+      <button id="reset-btn" disabled>↺ Сбросить раскраску <kbd>R</kbd></button>
+      <button id="trophy-btn">🏆 Достижения</button>
       <label class="sound-toggle">
-        <input id="sound-toggle" type="checkbox" checked /> 🔊 Звук
+        <input id="sound-toggle" type="checkbox" checked /> 🔊 Звук <kbd>M</kbd>
       </label>
     </div>
   </aside>
 </main>
+
+<div id="trophy-modal" class="modal hidden">
+  <div class="modal-card trophy-card">
+    <h2>🏆 Достижения</h2>
+    <div id="trophy-list" class="trophy-list"></div>
+    <button id="trophy-close">Закрыть <kbd>Esc</kbd></button>
+  </div>
+</div>
 
 <div id="finish-modal" class="modal hidden">
   <div class="modal-card">
