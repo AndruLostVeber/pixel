@@ -351,6 +351,7 @@ function handlePreview() {
 
 function handleReset() {
   if (!confirm("Точно сбросить всю раскраску?")) return;
+  startTimer();
   FX.toast("Раскраска сброшена", { kind: "info" });
   state.filled = state.indices.map((row) => row.map(() => false));
   state.filledCells = 0;
@@ -561,6 +562,23 @@ function maybeOnboard() {
   }, 600);
 }
 maybeOnboard();
+
+/* ---------- health ping ---------- */
+let healthFails = 0;
+async function pingHealth() {
+  try {
+    const r = await fetch("/api/health", { method: "GET", cache: "no-store" });
+    if (r.ok) { healthFails = 0; document.body.classList.remove("offline"); return; }
+    throw new Error();
+  } catch (_) {
+    healthFails++;
+    if (healthFails === 2) {
+      document.body.classList.add("offline");
+      FX.toast("Сервер недоступен — запусти uvicorn заново", { kind: "error", duration: 6000 });
+    }
+  }
+}
+setInterval(pingHealth, 30000);
 
 /* ---------- difficulty ---------- */
 const DIFFICULTY = {

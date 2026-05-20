@@ -137,6 +137,15 @@ kbd {
 .trophy-row.got .trophy-name { color: #ffd166; }
 .trophy-desc { font-size: 11px; color: var(--text-dim); }
 
+/* ---------- offline state ---------- */
+body.offline #generate-btn {
+  background: linear-gradient(180deg, var(--err), #c2455d);
+  box-shadow: 0 4px 12px rgba(255,91,108,0.25);
+}
+body.offline #generate-btn::before {
+  content: "⚠ "; font-size: 12px;
+}
+
 /* ---------- prompt presets ---------- */
 .presets {
   width: 100%;
