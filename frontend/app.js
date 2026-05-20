@@ -801,10 +801,14 @@ window.addEventListener("blur", handleMouseUp);
 const activePointers = new Map();   // pointerId -> { x, y }
 let pinchStartDist = 0;
 let pinchStartZoomIdx = 2;
+let pinchLastCenter = null;          // {x, y} для pan-сдвига
 
 function dist(a, b) {
   const dx = a.x - b.x, dy = a.y - b.y;
   return Math.sqrt(dx * dx + dy * dy);
+}
+function centerOf(p1, p2) {
+  return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
 }
 
 canvas.style.touchAction = "none";   // отключаем нативные жесты браузера
@@ -819,6 +823,7 @@ canvas.addEventListener("pointerdown", (ev) => {
     const [p1, p2] = [...activePointers.values()];
     pinchStartDist = dist(p1, p2);
     pinchStartZoomIdx = zoomIdx;
+    pinchLastCenter = centerOf(p1, p2);
     state.isDragging = false;
     state.hoverCell = null;
     return;
@@ -838,12 +843,12 @@ canvas.addEventListener("pointermove", (ev) => {
   activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
 
   if (activePointers.size === 2) {
-    // pinch
     const [p1, p2] = [...activePointers.values()];
     const d = dist(p1, p2);
+    const c = centerOf(p1, p2);
+    // pinch zoom
     if (pinchStartDist > 0) {
       const ratio = d / pinchStartDist;
-      // шаги зума дискретные — выбираем ближайший подходящий
       const targetZoom = ZOOM_LEVELS[pinchStartZoomIdx] * ratio;
       let best = 0, bestDiff = Infinity;
       for (let i = 0; i < ZOOM_LEVELS.length; i++) {
@@ -855,6 +860,17 @@ canvas.addEventListener("pointermove", (ev) => {
         applyZoom();
       }
     }
+    // two-finger pan
+    if (pinchLastCenter) {
+      const dx = pinchLastCenter.x - c.x;
+      const dy = pinchLastCenter.y - c.y;
+      const wrap = $("canvas-scroll");
+      if (wrap) {
+        wrap.scrollLeft += dx;
+        wrap.scrollTop += dy;
+      }
+    }
+    pinchLastCenter = c;
     return;
   }
   // одно касание — рисуем как обычно
@@ -865,6 +881,7 @@ function endPointer(ev) {
   activePointers.delete(ev.pointerId);
   if (activePointers.size < 2) {
     pinchStartDist = 0;
+    pinchLastCenter = null;
   }
   if (activePointers.size === 0) {
     handleMouseUp();
@@ -909,8 +926,21 @@ function openTrophy() {
   });
   $("trophy-modal").classList.remove("hidden");
 }
-$("trophy-btn").addEventListener("click", openTrophy);
+$("trophy-btn").addEventListener("click", () => { closeMenu(); openTrophy(); });
 $("trophy-close").addEventListener("click", () => $("trophy-modal").classList.add("hidden"));
+
+/* ---------- bottom-sheet menu ---------- */
+function openMenu() { $("menu-sheet").classList.remove("hidden"); }
+function closeMenu() { $("menu-sheet").classList.add("hidden"); }
+$("menu-btn").addEventListener("click", openMenu);
+$("menu-close").addEventListener("click", closeMenu);
+$("menu-sheet").addEventListener("click", (e) => { if (e.target.id === "menu-sheet") closeMenu(); });
+// После генерации меню автоматически закрывается — пусть юзер сразу видит картинку
+const _origLoadResult2 = loadResult;
+loadResult = function (data) {
+  _origLoadResult2(data);
+  closeMenu();
+};
 
 /* ---------- keyboard shortcuts ---------- */
 document.addEventListener("keydown", (e) => {
@@ -919,6 +949,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     $("finish-modal").classList.add("hidden");
     $("trophy-modal").classList.add("hidden");
+    closeMenu();
     return;
   }
   switch (e.key.toLowerCase()) {

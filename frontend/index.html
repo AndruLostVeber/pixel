@@ -2,109 +2,137 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>PixelForge — Paint by Numbers</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#0a0b10" />
+<title>PixelForge</title>
 <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-<header>
-  <div class="logo">🎨 PixelForge</div>
-  <div class="controls">
-    <input id="prompt" type="text" list="prompt-history" placeholder="cute red dragon, isometric castle, magic potion bottle..." />
-    <datalist id="prompt-history"></datalist>
-    <button id="dice-btn" type="button" class="icon-btn" title="Случайный промпт">🎲</button>
-    <label title="FLUX-schnell — быстро (5с) и точно по промпту, через NVIDIA API. Local — SDXL+LoRA на твоей карте.">
-      backend
-      <select id="backend">
-        <option value="flux-schnell" selected>FLUX.1-schnell ⚡</option>
-        <option value="flux-dev">FLUX.1-dev (медленно, но качественно)</option>
-        <option value="local">Local SDXL+LoRA</option>
-      </select>
-    </label>
-    <label title="Easy — мелкая сетка, кнопка-помощник. Hard — крупная сетка, без помощников.">
-      mode
-      <select id="difficulty">
-        <option value="easy">😊 Easy</option>
-        <option value="normal" selected>🎯 Normal</option>
-        <option value="hard">💀 Hard</option>
-        <option value="custom">⚙️ Custom</option>
-      </select>
-    </label>
-    <label>grid <input id="grid_size" type="number" value="32" min="16" max="96" step="8" /></label>
-    <label>colors <input id="n_colors" type="number" value="12" min="4" max="32" /></label>
-    <button id="generate-btn">Generate ⚡</button>
+
+<header class="topbar">
+  <button class="icon-btn" id="menu-btn" aria-label="Меню">☰</button>
+  <div class="topbar-center">
+    <div class="progress-bar"><div id="progress-fill"></div></div>
+    <div class="topbar-stats">
+      <span class="stat">⏱<span id="timer">0:00</span></span>
+      <span class="stat stat-streak">🔥<span id="streak-count">0</span></span>
+      <span class="stat stat-err">⚠<span id="errors-count">0</span></span>
+      <span class="stat stat-progress"><span id="filled-count">0</span>/<span id="total-count">0</span></span>
+      <span class="stat stat-best">★<span id="best-streak">0</span></span>
+    </div>
   </div>
-  <div class="presets" id="presets"></div>
+  <button class="icon-btn primary" id="generate-btn" aria-label="Новая картинка">⚡</button>
 </header>
 
-<main>
-  <section class="canvas-wrap">
-    <div class="zoom-bar">
-      <button class="icon-btn zoom-btn" id="zoom-out" title="Отдалить (-)">−</button>
-      <button class="icon-btn zoom-btn zoom-label" id="zoom-reset" title="100%">100%</button>
-      <button class="icon-btn zoom-btn" id="zoom-in" title="Приблизить (+)">+</button>
-    </div>
-    <div class="canvas-scroll">
-      <canvas id="canvas" width="768" height="768"></canvas>
-    </div>
-    <div id="status" class="status-overlay hidden">
-      <div class="spinner"></div>
-      <div id="status-text">Loading SDXL... первый запуск долгий</div>
-    </div>
-  </section>
-
-  <aside class="sidebar">
-    <div class="progress-block">
-      <div class="progress-label">Закрашено</div>
-      <div class="progress-num"><span id="filled-count">0</span> / <span id="total-count">0</span></div>
-      <div class="progress-bar"><div id="progress-fill"></div></div>
-      <div class="stats-row">
-        <span class="stat-chip">⏱ <span id="timer">0:00</span></span>
-        <span class="stat-chip">🔥 <span id="streak-count">0</span></span>
-        <span class="stat-chip">★ <span id="best-streak">0</span></span>
-        <span class="stat-chip stat-err">⚠ <span id="errors-count">0</span></span>
-      </div>
-    </div>
-
-    <div id="palette" class="palette"></div>
-
-    <div class="tools">
-      <div class="tools-label">Инструмент</div>
-      <div class="tool-row">
-        <button class="tool-btn active" data-tool="brush" title="Кисть (B)">🖌<kbd>B</kbd></button>
-        <button class="tool-btn" data-tool="bucket" title="Заливка региона (F)">🪣<kbd>F</kbd></button>
-        <button class="tool-btn" data-tool="eraser" title="Ластик (E)">🧽<kbd>E</kbd></button>
-      </div>
-      <label class="sound-toggle drag-toggle" title="Зажми ЛКМ и веди — закрашивает несколько клеток подряд">
-        <input id="drag-toggle" type="checkbox" /> ✋ Drag-to-paint
-      </label>
-    </div>
-
-    <div class="actions">
-      <button id="hint-btn" disabled>💡 Подсветить выбранный <kbd>H</kbd></button>
-      <button id="preview-btn" disabled>👁 Оригинал <kbd>P</kbd></button>
-      <button id="download-btn" disabled>💾 Скачать PNG <kbd>D</kbd></button>
-      <button id="reset-btn" disabled>↺ Сбросить раскраску <kbd>R</kbd></button>
-      <button id="trophy-btn">🏆 Достижения</button>
-      <label class="sound-toggle">
-        <input id="sound-toggle" type="checkbox" checked /> 🔊 Звук <kbd>M</kbd>
-      </label>
-    </div>
-  </aside>
+<main class="play-area">
+  <div class="zoom-bar">
+    <button class="icon-btn zoom-btn" id="zoom-out">−</button>
+    <button class="icon-btn zoom-btn zoom-label" id="zoom-reset">100%</button>
+    <button class="icon-btn zoom-btn" id="zoom-in">+</button>
+  </div>
+  <div class="canvas-scroll" id="canvas-scroll">
+    <canvas id="canvas" width="768" height="768"></canvas>
+  </div>
+  <div id="status" class="status-overlay hidden">
+    <div class="spinner"></div>
+    <div id="status-text">Рисую…</div>
+  </div>
 </main>
 
+<footer class="bottombar">
+  <div class="tool-row">
+    <button class="tool-btn active" data-tool="brush" aria-label="Кисть">🖌</button>
+    <button class="tool-btn" data-tool="bucket" aria-label="Заливка">🪣</button>
+    <button class="tool-btn" data-tool="eraser" aria-label="Ластик">🧽</button>
+  </div>
+  <div id="palette" class="palette-strip" aria-label="Палитра"></div>
+</footer>
+
+<!-- ===== bottom-sheet с настройками ===== -->
+<div id="menu-sheet" class="sheet hidden">
+  <div class="sheet-card">
+    <div class="sheet-handle"></div>
+    <button class="sheet-close" id="menu-close" aria-label="Закрыть">×</button>
+
+    <h3>Новая картинка</h3>
+    <div class="row">
+      <input id="prompt" type="text" list="prompt-history" placeholder="например: red dragon" />
+      <button id="dice-btn" class="icon-btn" type="button" title="Случайный">🎲</button>
+      <datalist id="prompt-history"></datalist>
+    </div>
+    <div class="presets" id="presets"></div>
+
+    <div class="row split">
+      <label class="field">
+        <span>Движок</span>
+        <select id="backend">
+          <option value="flux-schnell" selected>FLUX.1-schnell ⚡</option>
+          <option value="flux-dev">FLUX.1-dev (медленно)</option>
+          <option value="local">Local SDXL+LoRA</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Сложность</span>
+        <select id="difficulty">
+          <option value="easy">😊 Easy</option>
+          <option value="normal" selected>🎯 Normal</option>
+          <option value="hard">💀 Hard</option>
+          <option value="custom">⚙️ Custom</option>
+        </select>
+      </label>
+    </div>
+    <div class="row split">
+      <label class="field">
+        <span>Сетка</span>
+        <input id="grid_size" type="number" value="32" min="16" max="96" step="8" />
+      </label>
+      <label class="field">
+        <span>Цветов</span>
+        <input id="n_colors" type="number" value="12" min="4" max="32" />
+      </label>
+    </div>
+
+    <h3>Управление</h3>
+    <div class="row toggles">
+      <label class="toggle">
+        <input id="drag-toggle" type="checkbox" />
+        <span>Drag-to-paint</span>
+      </label>
+      <label class="toggle">
+        <input id="sound-toggle" type="checkbox" checked />
+        <span>🔊 Звук</span>
+      </label>
+    </div>
+
+    <h3>Действия</h3>
+    <div class="grid-actions">
+      <button id="hint-btn" disabled>💡 Подсказка</button>
+      <button id="preview-btn" disabled>👁 Оригинал</button>
+      <button id="download-btn" disabled>💾 PNG</button>
+      <button id="reset-btn" disabled>↺ Сброс</button>
+      <button id="trophy-btn">🏆 Достижения</button>
+    </div>
+
+    <p class="hint-text">
+      <b>Клавиши:</b> B/F/E — кисть/заливка/ластик · 1-9 — цвета · G — генерация · +/−/0 — зум · Esc — закрыть
+    </p>
+  </div>
+</div>
+
+<!-- ===== модалка ачивок ===== -->
 <div id="trophy-modal" class="modal hidden">
   <div class="modal-card trophy-card">
     <h2>🏆 Достижения</h2>
     <div id="trophy-list" class="trophy-list"></div>
-    <button id="trophy-close">Закрыть <kbd>Esc</kbd></button>
+    <button id="trophy-close">Закрыть</button>
   </div>
 </div>
 
+<!-- ===== модалка завершения ===== -->
 <div id="finish-modal" class="modal hidden">
   <div class="modal-card">
     <h2>🎉 Готово!</h2>
-    <p>Раскрашено за <span id="finish-time"></span></p>
+    <p>Время: <span id="finish-time"></span></p>
     <p>Ошибок: <span id="finish-errors"></span></p>
     <img id="finish-preview" />
     <button id="finish-close">OK</button>
