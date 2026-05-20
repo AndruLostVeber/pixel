@@ -39,7 +39,14 @@
 
 <main>
   <section class="canvas-wrap">
-    <canvas id="canvas" width="768" height="768"></canvas>
+    <div class="zoom-bar">
+      <button class="icon-btn zoom-btn" id="zoom-out" title="Отдалить (-)">−</button>
+      <button class="icon-btn zoom-btn zoom-label" id="zoom-reset" title="100%">100%</button>
+      <button class="icon-btn zoom-btn" id="zoom-in" title="Приблизить (+)">+</button>
+    </div>
+    <div class="canvas-scroll">
+      <canvas id="canvas" width="768" height="768"></canvas>
+    </div>
     <div id="status" class="status-overlay hidden">
       <div class="spinner"></div>
       <div id="status-text">Loading SDXL... первый запуск долгий</div>

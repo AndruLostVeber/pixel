@@ -187,13 +187,44 @@ main {
   border-radius: 14px;
   padding: 14px;
   box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 10px;
+  max-width: calc(100vw - 360px);
 }
+.canvas-scroll {
+  max-width: 100%;
+  max-height: calc(100vh - 200px);
+  overflow: auto;
+  border-radius: 8px;
+  background: #0e0f13;
+  scrollbar-color: var(--border-strong) var(--bg-0);
+  scrollbar-width: thin;
+}
+.canvas-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.canvas-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
+.canvas-scroll::-webkit-scrollbar-track { background: var(--bg-0); }
 #canvas {
   display: block; image-rendering: pixelated;
   cursor: crosshair; background: #f7f7f0; border-radius: 8px;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
   user-select: none;
+  /* width/height управляются через style из app.js при зуме */
 }
+
+.zoom-bar {
+  display: flex; gap: 4px; align-items: center; justify-content: center;
+  background: var(--bg-0); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px;
+  width: fit-content; align-self: center;
+}
+.zoom-btn {
+  background: transparent; border: none; padding: 4px 10px;
+  font: 700 14px/1 'JetBrains Mono', monospace;
+  color: var(--text-dim); min-width: 32px; box-shadow: none;
+}
+.zoom-btn:hover:not(:disabled) {
+  background: var(--bg-3); transform: none; color: var(--text);
+}
+.zoom-label { min-width: 56px; font-size: 12px; }
 
 .status-overlay {
   position: absolute; inset: 14px;
@@ -201,6 +232,7 @@ main {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  z-index: 10;
 }
 .status-overlay.hidden { display: none; }
 .spinner {

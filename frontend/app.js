@@ -726,6 +726,36 @@ function buildPresets() {
 }
 buildPresets();
 
+/* ---------- zoom ---------- */
+const ZOOM_LEVELS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
+let zoomIdx = 2;   // 1.0
+function applyZoom() {
+  const z = ZOOM_LEVELS[zoomIdx];
+  canvas.style.width = (CANVAS_PX * z) + "px";
+  canvas.style.height = (CANVAS_PX * z) + "px";
+  $("zoom-reset").textContent = Math.round(z * 100) + "%";
+  try { localStorage.setItem("pixelforge:zoom", String(zoomIdx)); } catch (_) {}
+}
+function zoomBy(delta) {
+  const next = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, zoomIdx + delta));
+  if (next === zoomIdx) return;
+  zoomIdx = next;
+  applyZoom();
+}
+$("zoom-in").addEventListener("click", () => zoomBy(1));
+$("zoom-out").addEventListener("click", () => zoomBy(-1));
+$("zoom-reset").addEventListener("click", () => { zoomIdx = 2; applyZoom(); });
+canvas.addEventListener("wheel", (ev) => {
+  if (!ev.ctrlKey && !ev.metaKey) return;
+  ev.preventDefault();
+  zoomBy(ev.deltaY < 0 ? 1 : -1);
+}, { passive: false });
+try {
+  const z = parseInt(localStorage.getItem("pixelforge:zoom") || "2", 10);
+  if (z >= 0 && z < ZOOM_LEVELS.length) zoomIdx = z;
+} catch (_) {}
+applyZoom();
+
 /* ---------- tool switcher ---------- */
 function selectTool(name) {
   state.tool = name;
@@ -841,6 +871,9 @@ document.addEventListener("keydown", (e) => {
     case "b": selectTool("brush"); break;
     case "f": selectTool("bucket"); break;
     case "e": selectTool("eraser"); break;
+    case "+": case "=": zoomBy(1); break;
+    case "-": case "_": zoomBy(-1); break;
+    case "0": zoomIdx = 2; applyZoom(); break;
     case "?":
     case "/":
       FX.toast("Клавиши: G ген, R сброс, H хинт, P оригинал, D скачать, M звук. Инструменты: B кисть, F заливка, E ластик. 1-9 цвета. Esc закрыть.", { kind: "info", duration: 8000 });
