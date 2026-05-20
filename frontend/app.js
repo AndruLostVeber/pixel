@@ -18,6 +18,10 @@ const state = {
   hintCellsToRedraw: new Set(),
   previewB64: null,
   startedAt: null,
+  // drag-to-paint
+  isDragging: false,
+  dragErrorThisStroke: false,  // штрафуем только за первый клик в стрике
+  hoverCell: null,             // {x,y} текущая клетка под курсором
 };
 
 /* ---------- rendering ---------- */
@@ -133,27 +137,62 @@ function cellFromEvent(ev) {
   return { x, y };
 }
 
-function handleClick(ev) {
-  if (state.selectedColor == null) return;
-  const cell = cellFromEvent(ev);
-  if (!cell) return;
-  const { x, y } = cell;
-  if (state.filled[y][x]) return;
-
+function paintCell(x, y) {
+  if (state.filled[y][x]) return "skip";
   if (state.indices[y][x] === state.selectedColor) {
     state.filled[y][x] = true;
     state.filledCells++;
-    updateProgress();
-    updateRemaining();
     ctx.fillStyle = state.palette[state.selectedColor];
     ctx.fillRect(x * state.cellPx, y * state.cellPx, state.cellPx + 0.5, state.cellPx + 0.5);
-    drawGrid();
-    if (state.filledCells === state.totalCells) onFinish();
-  } else {
-    state.errors++;
-    $("errors-count").textContent = state.errors;
-    flashCell(x, y, "rgba(255,80,80,0.85)", 220);
+    return "hit";
   }
+  return "miss";
+}
+
+function handleMouseDown(ev) {
+  if (ev.button !== 0) return;
+  if (state.selectedColor == null) return;
+  const cell = cellFromEvent(ev);
+  if (!cell) return;
+  state.isDragging = true;
+  state.dragErrorThisStroke = false;
+  const res = paintCell(cell.x, cell.y);
+  if (res === "hit") {
+    drawGrid();
+    updateProgress();
+    updateRemaining();
+    if (state.filledCells === state.totalCells) onFinish();
+  } else if (res === "miss") {
+    state.errors++;
+    state.dragErrorThisStroke = true;
+    $("errors-count").textContent = state.errors;
+    flashCell(cell.x, cell.y, "rgba(255,80,80,0.85)", 220);
+  }
+}
+
+function handleMouseMove(ev) {
+  const cell = cellFromEvent(ev);
+  state.hoverCell = cell;
+  if (state.isDragging && state.selectedColor != null && cell) {
+    // во время drag — только закрашиваем правильные клетки, без штрафа за случайные мазки по неправильным
+    const res = paintCell(cell.x, cell.y);
+    if (res === "hit") {
+      drawGrid();
+      updateProgress();
+      updateRemaining();
+      if (state.filledCells === state.totalCells) onFinish();
+    }
+  }
+}
+
+function handleMouseUp() {
+  state.isDragging = false;
+  state.dragErrorThisStroke = false;
+}
+
+function handleMouseLeave() {
+  state.isDragging = false;
+  state.hoverCell = null;
 }
 
 function handleHint() {
@@ -294,7 +333,11 @@ function loadResult(data) {
 
 /* ---------- init ---------- */
 
-canvas.addEventListener("click", handleClick);
+canvas.addEventListener("mousedown", handleMouseDown);
+canvas.addEventListener("mousemove", handleMouseMove);
+window.addEventListener("mouseup", handleMouseUp);
+canvas.addEventListener("mouseleave", handleMouseLeave);
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 $("generate-btn").addEventListener("click", generate);
 $("hint-btn").addEventListener("click", handleHint);
 $("autofill-btn").addEventListener("click", handleAutofill);
