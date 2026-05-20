@@ -224,6 +224,9 @@ function paintCell(x, y) {
       const level = state.streak >= 25 ? "big" : state.streak >= 10 ? "med" : "small";
       window.FX && FX.milestone(level);
     }
+    if (state.filledCells === 1) window.Achievements && Achievements.unlock("first_paint");
+    if (state.streak === 50) window.Achievements && Achievements.unlock("mega_streak");
+    if (state.streak === 100) window.Achievements && Achievements.unlock("ultra_streak");
     scheduleSave();
     return "hit";
   }
@@ -300,6 +303,7 @@ function handleMouseLeave() {
 
 function handleHint() {
   if (state.selectedColor == null) return;
+  window.Achievements && Achievements.noteHintUsed();
   const { gridSize, cellPx, indices, filled, selectedColor } = state;
   ctx.save();
   ctx.fillStyle = "rgba(91,108,255,0.45)";
@@ -316,6 +320,7 @@ function handleHint() {
 
 function handleAutofill() {
   if (state.selectedColor == null) return;
+  window.Achievements && Achievements.noteHintUsed();
   let count = 0;
   for (let y = 0; y < state.gridSize; y++) {
     for (let x = 0; x < state.gridSize; x++) {
@@ -378,6 +383,14 @@ function onFinish() {
   $("finish-modal").classList.remove("hidden");
   window.FX && FX.finish();
   window.FX && FX.confetti();
+  if (window.Achievements) {
+    Achievements.incrementFinishes();
+    if (state.errors === 0) Achievements.unlock("perfect");
+    if (sec < 90) Achievements.unlock("speedrun");
+    if (state.gridSize >= 64) Achievements.unlock("big_grid");
+    if (!Achievements.wasHintUsed()) Achievements.unlock("no_hints");
+    Achievements.resetHintFlag();
+  }
 }
 
 /* ---------- generation ---------- */
@@ -411,6 +424,7 @@ async function generate() {
     const data = await r.json();
     loadResult(data);
     FX.toast(`Готово за ${data.elapsed_sec}с · ${data.backend} · ${data.palette.length} цветов`, { kind: "success" });
+    window.Achievements && Achievements.notePrompt(prompt);
   } catch (e) {
     FX.toast("Ошибка: " + e.message, { kind: "error", duration: 6000 });
   } finally {
