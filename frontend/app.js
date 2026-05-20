@@ -206,6 +206,7 @@ function paintCell(x, y) {
       const level = state.streak >= 25 ? "big" : state.streak >= 10 ? "med" : "small";
       window.FX && FX.milestone(level);
     }
+    scheduleSave();
     return "hit";
   }
   return "miss";
@@ -307,6 +308,7 @@ function handleAutofill() {
   updateProgress();
   updateRemaining();
   repaint();
+  scheduleSave();
   if (state.filledCells === state.totalCells) onFinish();
 }
 
@@ -333,6 +335,7 @@ function handleReset() {
   updateProgress();
   updateRemaining();
   repaint();
+  scheduleSave();
 }
 
 function updateProgress() {
@@ -418,6 +421,7 @@ function loadResult(data) {
   buildPalette();
   updateProgress();
   repaint();
+  scheduleSave();
 }
 
 /* ---------- init ---------- */
@@ -443,8 +447,103 @@ try {
   if (saved === "0") { $("sound-toggle").checked = false; window.FX && FX.setEnabled(false); }
 } catch (_) {}
 
+/* ---------- autosave ---------- */
+const SAVE_KEY = "pixelforge:session";
+const BEST_STREAK_KEY = "pixelforge:bestStreak";
+let saveTimer = null;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveSession, 350);
+}
+function saveSession() {
+  if (!state.gridSize) return;
+  try {
+    const data = {
+      v: 1,
+      prompt: $("prompt").value,
+      backend: $("backend").value,
+      gridSize: state.gridSize,
+      palette: state.palette,
+      indices: state.indices,
+      filled: packBits(state.filled),
+      errors: state.errors,
+      bestStreak: state.bestStreak,
+      ts: Date.now(),
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    localStorage.setItem(BEST_STREAK_KEY, String(state.bestStreak));
+  } catch (_) { /* quota — игнор */ }
+}
+function packBits(grid) {
+  return grid.map((row) => {
+    let s = "";
+    for (const v of row) s += v ? "1" : "0";
+    return s;
+  });
+}
+function unpackBits(packed) {
+  return packed.map((row) => row.split("").map((c) => c === "1"));
+}
+function loadSession() {
+  let raw;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch (_) { return false; }
+  if (!raw) return false;
+  try {
+    const d = JSON.parse(raw);
+    if (d.v !== 1 || !d.palette || !d.indices) return false;
+    // если сохранена завершённая раскраска — не подгружаем
+    let _filledCount = 0;
+    const _unp = unpackBits(d.filled);
+    for (const row of _unp) for (const v of row) if (v) _filledCount++;
+    if (_filledCount >= d.gridSize * d.gridSize) return false;
+    $("prompt").value = d.prompt || "";
+    if (d.backend) $("backend").value = d.backend;
+    state.gridSize = d.gridSize;
+    state.cellPx = CANVAS_PX / d.gridSize;
+    state.palette = d.palette;
+    state.indices = d.indices;
+    state.filled = unpackBits(d.filled);
+    state.errors = d.errors || 0;
+    state.bestStreak = d.bestStreak || 0;
+    state.streak = 0;
+    state.filledCells = 0;
+    state.totalCells = d.gridSize * d.gridSize;
+    for (let y = 0; y < d.gridSize; y++)
+      for (let x = 0; x < d.gridSize; x++)
+        if (state.filled[y][x]) state.filledCells++;
+    state.previewB64 = null;     // не храним в LS — большой
+    state.startedAt = performance.now();
+    state.selectedColor = null;
+    $("errors-count").textContent = state.errors;
+    $("preview-btn").disabled = true;   // оригинал не сохранён
+    $("reset-btn").disabled = false;
+    buildPalette();
+    updateStreak();
+    updateProgress();
+    repaint();
+    return true;
+  } catch (_) { return false; }
+}
+function clearSession() {
+  try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
+}
+
+// глобальный bestStreak — даже при новой генерации
+try {
+  const gb = parseInt(localStorage.getItem(BEST_STREAK_KEY) || "0", 10);
+  if (gb > 0) { state.bestStreak = gb; updateStreak(); }
+} catch (_) {}
+
 clearCanvas();
 ctx.fillStyle = "#888";
 ctx.font = "20px JetBrains Mono, Consolas, monospace";
 ctx.textAlign = "center";
 ctx.fillText("Введи промпт и жми Generate ⚡", CANVAS_PX / 2, CANVAS_PX / 2);
+
+if (loadSession()) {
+  // показать пользователю что подгрузили
+  setTimeout(() => {
+    const pct = ((state.filledCells / state.totalCells) * 100).toFixed(0);
+    console.log(`Восстановлена прошлая раскраска (${pct}%)`);
+  }, 100);
+}
