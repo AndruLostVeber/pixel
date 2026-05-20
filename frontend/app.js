@@ -324,6 +324,7 @@ function handlePreview() {
 
 function handleReset() {
   if (!confirm("Точно сбросить всю раскраску?")) return;
+  FX.toast("Раскраска сброшена", { kind: "info" });
   state.filled = state.indices.map((row) => row.map(() => false));
   state.filledCells = 0;
   state.errors = 0;
@@ -362,7 +363,7 @@ function onFinish() {
 
 async function generate() {
   const prompt = $("prompt").value.trim();
-  if (!prompt) { alert("Введи промпт"); return; }
+  if (!prompt) { FX.toast("Введи промпт", { kind: "warn" }); return; }
   const grid_size = +$("grid_size").value;
   const n_colors = +$("n_colors").value;
   const backend = $("backend").value;
@@ -388,8 +389,9 @@ async function generate() {
     }
     const data = await r.json();
     loadResult(data);
+    FX.toast(`Готово за ${data.elapsed_sec}с · ${data.backend} · ${data.palette.length} цветов`, { kind: "success" });
   } catch (e) {
-    alert("Ошибка: " + e.message);
+    FX.toast("Ошибка: " + e.message, { kind: "error", duration: 6000 });
   } finally {
     $("status").classList.add("hidden");
     $("generate-btn").disabled = false;
@@ -541,9 +543,8 @@ ctx.textAlign = "center";
 ctx.fillText("Введи промпт и жми Generate ⚡", CANVAS_PX / 2, CANVAS_PX / 2);
 
 if (loadSession()) {
-  // показать пользователю что подгрузили
   setTimeout(() => {
     const pct = ((state.filledCells / state.totalCells) * 100).toFixed(0);
-    console.log(`Восстановлена прошлая раскраска (${pct}%)`);
-  }, 100);
+    FX.toast(`Восстановлена прошлая раскраска (${pct}%)`, { kind: "success", duration: 4500 });
+  }, 250);
 }
