@@ -61,9 +61,20 @@
 
     <div id="palette" class="palette"></div>
 
+    <div class="tools">
+      <div class="tools-label">Инструмент</div>
+      <div class="tool-row">
+        <button class="tool-btn active" data-tool="brush" title="Кисть (B)">🖌<kbd>B</kbd></button>
+        <button class="tool-btn" data-tool="bucket" title="Заливка региона (F)">🪣<kbd>F</kbd></button>
+        <button class="tool-btn" data-tool="eraser" title="Ластик (E)">🧽<kbd>E</kbd></button>
+      </div>
+      <label class="sound-toggle drag-toggle" title="Зажми ЛКМ и веди — закрашивает несколько клеток подряд">
+        <input id="drag-toggle" type="checkbox" /> ✋ Drag-to-paint
+      </label>
+    </div>
+
     <div class="actions">
       <button id="hint-btn" disabled>💡 Подсветить выбранный <kbd>H</kbd></button>
-      <button id="autofill-btn" disabled>⚡ Залить выбранный <kbd>A</kbd></button>
       <button id="preview-btn" disabled>👁 Оригинал <kbd>P</kbd></button>
       <button id="download-btn" disabled>💾 Скачать PNG <kbd>D</kbd></button>
       <button id="reset-btn" disabled>↺ Сбросить раскраску <kbd>R</kbd></button>

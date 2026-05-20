@@ -321,6 +321,40 @@ main {
   font-family: 'JetBrains Mono', Consolas, monospace;
 }
 
+/* ---------- tools ---------- */
+.tools {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.tools-label {
+  font-size: 10px; color: var(--text-mute);
+  text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
+}
+.tool-row { display: flex; gap: 6px; }
+.tool-btn {
+  flex: 1;
+  background: var(--bg-0); color: var(--text-dim);
+  border: 1px solid var(--border); box-shadow: none;
+  padding: 12px 8px; font-size: 22px; text-align: center;
+  position: relative; line-height: 1;
+  transition: all 0.15s;
+}
+.tool-btn:hover:not(.active) {
+  background: var(--bg-3); color: var(--text);
+  transform: translateY(-2px);
+}
+.tool-btn.active {
+  background: linear-gradient(135deg, rgba(91,108,255,0.25), rgba(177,108,255,0.18));
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 1px var(--accent), 0 6px 16px rgba(91,108,255,0.3);
+}
+.tool-btn kbd {
+  position: absolute; bottom: 3px; right: 4px;
+  margin-left: 0; font-size: 9px; padding: 0 3px;
+}
+.drag-toggle { margin-top: 0; }
+
 /* ---------- actions ---------- */
 .actions { display: flex; flex-direction: column; gap: 7px; }
 .actions button {

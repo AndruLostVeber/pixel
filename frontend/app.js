@@ -20,8 +20,11 @@ const state = {
   startedAt: null,
   // drag-to-paint
   isDragging: false,
-  dragErrorThisStroke: false,  // штрафуем только за первый клик в стрике
+  dragMode: false,             // false = click-to-paint (дефолт), true = drag-to-paint
   hoverCell: null,             // {x,y} текущая клетка под курсором
+  lastPaintedCell: null,       // не штрафуем повторно за одну клетку в одном страйке
+  // tool
+  tool: "brush",               // "brush" | "bucket" | "eraser"
   // combo / pulse
   streak: 0,
   bestStreak: 0,
@@ -191,7 +194,6 @@ function selectColor(i) {
   });
   const hintsOk = state.hintsAllowed !== false;
   $("hint-btn").disabled = !hintsOk;
-  $("autofill-btn").disabled = !hintsOk;
   window.FX && FX.select();
 }
 
@@ -251,27 +253,109 @@ function updateStreak() {
   if (best) best.textContent = state.bestStreak;
 }
 
-function handleMouseDown(ev) {
-  if (ev.button !== 0) return;
-  if (state.selectedColor == null) return;
-  const cell = cellFromEvent(ev);
-  if (!cell) return;
-  state.isDragging = true;
-  state.dragErrorThisStroke = false;
-  const res = paintCell(cell.x, cell.y);
-  if (res === "hit") {
-    drawGrid();
-    updateProgress();
-    updateRemaining();
-    if (state.filledCells === state.totalCells) onFinish();
-  } else if (res === "miss") {
+function applyHit() {
+  drawGrid();
+  updateProgress();
+  updateRemaining();
+  if (state.filledCells === state.totalCells) onFinish();
+}
+
+function doBrushClick(x, y) {
+  // одиночный клик кистью — с штрафом за промах
+  const res = paintCell(x, y);
+  if (res === "hit") applyHit();
+  else if (res === "miss") {
     state.errors++;
-    state.dragErrorThisStroke = true;
     $("errors-count").textContent = state.errors;
     breakStreak();
     window.FX && FX.miss();
-    flashCell(cell.x, cell.y, "rgba(255,80,80,0.85)", 220);
+    flashCell(x, y, "rgba(255,80,80,0.85)", 220);
   }
+}
+
+function doBrushDrag(x, y) {
+  // движение мыши с зажатой кнопкой — без штрафа (просто не красит неверные)
+  const key = `${x},${y}`;
+  if (state.lastPaintedCell === key) return;
+  state.lastPaintedCell = key;
+  const res = paintCell(x, y);
+  if (res === "hit") applyHit();
+}
+
+function doEraser(x, y) {
+  if (!state.filled[y][x]) return;
+  state.filled[y][x] = false;
+  state.filledCells--;
+  updateProgress();
+  updateRemaining();
+  repaint();
+  scheduleSave();
+}
+
+function doBucket(x, y) {
+  // Flood-fill BFS только по связной области с тем же индексом цвета
+  if (state.selectedColor == null) {
+    FX.toast("Сначала выбери цвет в палитре", { kind: "warn" });
+    return;
+  }
+  if (state.filled[y][x]) return;
+  const target = state.indices[y][x];
+  if (target !== state.selectedColor) {
+    // промах — клетка не нужного цвета
+    state.errors++;
+    $("errors-count").textContent = state.errors;
+    breakStreak();
+    window.FX && FX.miss();
+    flashCell(x, y, "rgba(255,80,80,0.85)", 220);
+    return;
+  }
+  const N = state.gridSize;
+  const stack = [[x, y]];
+  let painted = 0;
+  while (stack.length) {
+    const [cx, cy] = stack.pop();
+    if (cx < 0 || cy < 0 || cx >= N || cy >= N) continue;
+    if (state.filled[cy][cx]) continue;
+    if (state.indices[cy][cx] !== target) continue;
+    state.filled[cy][cx] = true;
+    state.filledCells++;
+    state.pulses.push({ x: cx, y: cy, t0: performance.now() + (painted * 4) });
+    painted++;
+    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+  if (painted) {
+    state.streak += painted;
+    if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+    updateStreak();
+    window.FX && FX.hit();
+    if (painted >= 5) window.FX && FX.milestone("med");
+    window.Achievements && Achievements.noteHintUsed();   // bucket — лёгкий чит, фиксируем
+    kickAnim();
+    applyHit();
+    scheduleSave();
+  }
+}
+
+function handleMouseDown(ev) {
+  if (ev.button !== 0) return;
+  const cell = cellFromEvent(ev);
+  if (!cell) return;
+
+  if (state.tool === "eraser") {
+    doEraser(cell.x, cell.y);
+    state.isDragging = state.dragMode;
+    state.lastPaintedCell = `${cell.x},${cell.y}`;
+    return;
+  }
+  if (state.tool === "bucket") {
+    doBucket(cell.x, cell.y);
+    return;
+  }
+  // brush
+  if (state.selectedColor == null) return;
+  doBrushClick(cell.x, cell.y);
+  state.isDragging = state.dragMode;
+  state.lastPaintedCell = `${cell.x},${cell.y}`;
 }
 
 function handleMouseMove(ev) {
@@ -279,25 +363,22 @@ function handleMouseMove(ev) {
   const prev = state.hoverCell;
   state.hoverCell = cell;
   if (!prev || !cell || prev.x !== cell.x || prev.y !== cell.y) kickAnim();
-  if (state.isDragging && state.selectedColor != null && cell) {
-    // во время drag — только закрашиваем правильные клетки, без штрафа за случайные мазки по неправильным
-    const res = paintCell(cell.x, cell.y);
-    if (res === "hit") {
-      drawGrid();
-      updateProgress();
-      updateRemaining();
-      if (state.filledCells === state.totalCells) onFinish();
-    }
+  if (!state.isDragging || !cell) return;
+  if (state.tool === "eraser") {
+    doEraser(cell.x, cell.y);
+  } else if (state.tool === "brush" && state.selectedColor != null) {
+    doBrushDrag(cell.x, cell.y);
   }
 }
 
 function handleMouseUp() {
   state.isDragging = false;
-  state.dragErrorThisStroke = false;
+  state.lastPaintedCell = null;
 }
 
 function handleMouseLeave() {
   state.isDragging = false;
+  state.lastPaintedCell = null;
   state.hoverCell = null;
   repaint();
 }
@@ -317,26 +398,6 @@ function handleHint() {
   }
   ctx.restore();
   setTimeout(() => repaint(), 600);
-}
-
-function handleAutofill() {
-  if (state.selectedColor == null) return;
-  window.Achievements && Achievements.noteHintUsed();
-  let count = 0;
-  for (let y = 0; y < state.gridSize; y++) {
-    for (let x = 0; x < state.gridSize; x++) {
-      if (!state.filled[y][x] && state.indices[y][x] === state.selectedColor) {
-        state.filled[y][x] = true;
-        count++;
-      }
-    }
-  }
-  state.filledCells += count;
-  updateProgress();
-  updateRemaining();
-  repaint();
-  scheduleSave();
-  if (state.filledCells === state.totalCells) onFinish();
 }
 
 function handlePreview() {
@@ -512,9 +573,8 @@ function loadResult(data) {
   $("preview-btn").disabled = false;
   $("reset-btn").disabled = false;
   $("download-btn").disabled = false;
-  // блокируем хинты согласно сложности (selectColor разрешит когда цвет выбран)
+  // блокируем хинт пока цвет не выбран
   $("hint-btn").disabled = true;
-  $("autofill-btn").disabled = true;
 
   buildPalette();
   updateProgress();
@@ -666,6 +726,43 @@ function buildPresets() {
 }
 buildPresets();
 
+/* ---------- tool switcher ---------- */
+function selectTool(name) {
+  state.tool = name;
+  state.isDragging = false;
+  state.lastPaintedCell = null;
+  document.querySelectorAll(".tool-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.tool === name);
+  });
+  // курсор-намёк
+  canvas.style.cursor = name === "eraser" ? "cell" : name === "bucket" ? "crosshair" : "crosshair";
+  try { localStorage.setItem("pixelforge:tool", name); } catch (_) {}
+  window.FX && FX.select();
+}
+document.querySelectorAll(".tool-btn").forEach((b) => {
+  b.addEventListener("click", () => selectTool(b.dataset.tool));
+});
+try {
+  const savedTool = localStorage.getItem("pixelforge:tool");
+  if (savedTool && ["brush", "bucket", "eraser"].includes(savedTool)) selectTool(savedTool);
+} catch (_) {}
+
+/* ---------- drag toggle ---------- */
+$("drag-toggle").addEventListener("change", (e) => {
+  state.dragMode = e.target.checked;
+  try { localStorage.setItem("pixelforge:dragMode", e.target.checked ? "1" : "0"); } catch (_) {}
+  FX.toast(state.dragMode ? "Drag-to-paint включён" : "Click-to-paint режим", { kind: "info" });
+});
+try {
+  if (localStorage.getItem("pixelforge:dragMode") === "1") {
+    $("drag-toggle").checked = true;
+    state.dragMode = true;
+  }
+} catch (_) {}
+
+// сброс drag при потере фокуса окна (alt-tab) — иначе isDragging залипает
+window.addEventListener("blur", handleMouseUp);
+
 canvas.addEventListener("mousedown", handleMouseDown);
 canvas.addEventListener("mousemove", handleMouseMove);
 window.addEventListener("mouseup", handleMouseUp);
@@ -738,13 +835,15 @@ document.addEventListener("keydown", (e) => {
     case "g": $("generate-btn").click(); break;
     case "r": if (!$("reset-btn").disabled) handleReset(); break;
     case "h": if (!$("hint-btn").disabled) handleHint(); break;
-    case "a": if (!$("autofill-btn").disabled) handleAutofill(); break;
     case "p": if (!$("preview-btn").disabled) handlePreview(); break;
     case "d": if (!$("download-btn").disabled) downloadPainted(); break;
     case "m": $("sound-toggle").click(); break;
+    case "b": selectTool("brush"); break;
+    case "f": selectTool("bucket"); break;
+    case "e": selectTool("eraser"); break;
     case "?":
     case "/":
-      FX.toast("Клавиши: G ген, R сброс, H хинт, A залить, P оригинал, D скачать, M звук, Esc — закрыть", { kind: "info", duration: 6000 });
+      FX.toast("Клавиши: G ген, R сброс, H хинт, P оригинал, D скачать, M звук. Инструменты: B кисть, F заливка, E ластик. 1-9 цвета. Esc закрыть.", { kind: "info", duration: 8000 });
       break;
     default:
       // 1-9 = выбор цвета
@@ -756,7 +855,6 @@ document.addEventListener("keydown", (e) => {
 });
 $("generate-btn").addEventListener("click", generate);
 $("hint-btn").addEventListener("click", handleHint);
-$("autofill-btn").addEventListener("click", handleAutofill);
 $("preview-btn").addEventListener("click", handlePreview);
 $("reset-btn").addEventListener("click", handleReset);
 $("finish-close").addEventListener("click", () => $("finish-modal").classList.add("hidden"));
