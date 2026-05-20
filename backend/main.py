@@ -11,11 +11,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from PIL import Image
 from pydantic import BaseModel, Field
 
-from .generate import get_generator
 from .nvidia_flux import get_flux_generator
 from .pixelify import pixelify
+
+# generate.py тащит torch/diffusers/SDXL — ленивый импорт чтобы FLUX-only режим стартовал быстро
+def _get_local_generator():
+    from .generate import get_generator
+    return get_generator()
 
 ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = ROOT / "frontend"
@@ -56,8 +61,9 @@ class GenerateResponse(BaseModel):
 
 
 def _img_to_b64(img) -> str:
+    """WebP в 3-4 раза легче PNG при тех же видимых пикселях."""
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
+    img.save(buf, format="WEBP", lossless=True, quality=100, method=4)
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
@@ -66,7 +72,7 @@ def api_generate(req: GenerateRequest):
     t0 = time.time()
     try:
         if req.backend == "local":
-            gen = get_generator()
+            gen = _get_local_generator()
             raw = gen.generate(
                 req.prompt,
                 steps=req.steps if req.steps >= 8 else 28,
@@ -97,7 +103,7 @@ def api_generate(req: GenerateRequest):
         grid_size=result.grid_size,
         palette=result.palette_hex,
         indices=result.color_indices,
-        preview_b64=_img_to_b64(result.grid_upscaled),
+        preview_b64=_img_to_b64(result.grid_small.resize((384, 384), Image.Resampling.NEAREST)),
         elapsed_sec=round(time.time() - t0, 2),
     )
 

@@ -319,7 +319,7 @@ function handlePreview() {
     ctx.drawImage(img, 0, 0, CANVAS_PX, CANVAS_PX);
     setTimeout(() => repaint(), 1500);
   };
-  img.src = "data:image/png;base64," + state.previewB64;
+  img.src = "data:image/webp;base64," + state.previewB64;
 }
 
 function handleReset() {
@@ -353,7 +353,7 @@ function onFinish() {
   const ss = sec % 60;
   $("finish-time").textContent = `${mm}:${String(ss).padStart(2, "0")}`;
   $("finish-errors").textContent = state.errors;
-  $("finish-preview").src = "data:image/png;base64," + state.previewB64;
+  if (state.previewB64) $("finish-preview").src = "data:image/webp;base64," + state.previewB64;
   $("finish-modal").classList.remove("hidden");
   window.FX && FX.finish();
   window.FX && FX.confetti();

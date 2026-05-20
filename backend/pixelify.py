@@ -6,7 +6,7 @@ from typing import List, Tuple
 
 import numpy as np
 from PIL import Image
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MiniBatchKMeans
 
 
 @dataclass
@@ -37,9 +37,13 @@ def pixelify(
     n_unique = len(np.unique(arr, axis=0))
     k = min(n_colors, n_unique)
 
-    kmeans = KMeans(n_clusters=k, n_init=4, random_state=random_state).fit(arr)
-    palette_rgb = np.round(kmeans.cluster_centers_).astype(np.uint8)  # (k, 3)
-    labels = kmeans.labels_.reshape(grid_size, grid_size)             # (H, W)
+    # больший grid — MiniBatchKMeans быстрее на ~3x с близким качеством
+    if arr.shape[0] >= 4096:
+        km = MiniBatchKMeans(n_clusters=k, n_init=3, random_state=random_state, batch_size=1024).fit(arr)
+    else:
+        km = KMeans(n_clusters=k, n_init=3, random_state=random_state).fit(arr)
+    palette_rgb = np.round(km.cluster_centers_).astype(np.uint8)
+    labels = km.labels_.reshape(grid_size, grid_size)
 
     quantized = palette_rgb[labels]                                   # (H, W, 3)
     small_quantized = Image.fromarray(quantized.astype(np.uint8), mode="RGB")
