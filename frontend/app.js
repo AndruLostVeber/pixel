@@ -793,30 +793,90 @@ try {
 // сброс drag при потере фокуса окна (alt-tab) — иначе isDragging залипает
 window.addEventListener("blur", handleMouseUp);
 
-canvas.addEventListener("mousedown", handleMouseDown);
-canvas.addEventListener("mousemove", handleMouseMove);
-window.addEventListener("mouseup", handleMouseUp);
-canvas.addEventListener("mouseleave", handleMouseLeave);
-canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+/* ---------- pointer events: единый путь для мыши и touch ----------
+ * Раньше mouse+touch дублировались — на крупных гридах одно нажатие
+ * могло триггерить mousedown+touchstart. Теперь один источник истины.
+ * Бонусом — pinch-zoom двумя пальцами.
+ */
+const activePointers = new Map();   // pointerId -> { x, y }
+let pinchStartDist = 0;
+let pinchStartZoomIdx = 2;
 
-/* ---------- touch (мобайл) ---------- */
-function touchAsMouse(ev, type) {
-  if (!ev.touches.length && type !== "end") return null;
-  const t = (ev.touches[0] || ev.changedTouches[0]);
-  return { clientX: t.clientX, clientY: t.clientY, button: 0 };
+function dist(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
 }
-canvas.addEventListener("touchstart", (ev) => {
-  ev.preventDefault();
-  const fake = touchAsMouse(ev, "start");
-  if (fake) handleMouseDown(fake);
-}, { passive: false });
-canvas.addEventListener("touchmove", (ev) => {
-  ev.preventDefault();
-  const fake = touchAsMouse(ev, "move");
-  if (fake) handleMouseMove(fake);
-}, { passive: false });
-canvas.addEventListener("touchend", () => handleMouseUp(), { passive: false });
-canvas.addEventListener("touchcancel", () => handleMouseUp(), { passive: false });
+
+canvas.style.touchAction = "none";   // отключаем нативные жесты браузера
+
+canvas.addEventListener("pointerdown", (ev) => {
+  if (ev.button !== 0 && ev.button !== -1) return;  // mouse-only left btn
+  canvas.setPointerCapture(ev.pointerId);
+  activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+
+  // если два пальца — переключаемся в режим pinch и отменяем рисование
+  if (activePointers.size === 2) {
+    const [p1, p2] = [...activePointers.values()];
+    pinchStartDist = dist(p1, p2);
+    pinchStartZoomIdx = zoomIdx;
+    state.isDragging = false;
+    state.hoverCell = null;
+    return;
+  }
+  if (activePointers.size > 1) return;
+
+  // ровно один pointer — стандартный mouse-like flow
+  handleMouseDown(ev);
+}, { passive: true });
+
+canvas.addEventListener("pointermove", (ev) => {
+  if (!activePointers.has(ev.pointerId)) {
+    // hover (только для mouse) — нужен индикатор клетки
+    if (ev.pointerType === "mouse" && activePointers.size === 0) handleMouseMove(ev);
+    return;
+  }
+  activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+
+  if (activePointers.size === 2) {
+    // pinch
+    const [p1, p2] = [...activePointers.values()];
+    const d = dist(p1, p2);
+    if (pinchStartDist > 0) {
+      const ratio = d / pinchStartDist;
+      // шаги зума дискретные — выбираем ближайший подходящий
+      const targetZoom = ZOOM_LEVELS[pinchStartZoomIdx] * ratio;
+      let best = 0, bestDiff = Infinity;
+      for (let i = 0; i < ZOOM_LEVELS.length; i++) {
+        const diff = Math.abs(ZOOM_LEVELS[i] - targetZoom);
+        if (diff < bestDiff) { bestDiff = diff; best = i; }
+      }
+      if (best !== zoomIdx) {
+        zoomIdx = best;
+        applyZoom();
+      }
+    }
+    return;
+  }
+  // одно касание — рисуем как обычно
+  handleMouseMove(ev);
+}, { passive: true });
+
+function endPointer(ev) {
+  activePointers.delete(ev.pointerId);
+  if (activePointers.size < 2) {
+    pinchStartDist = 0;
+  }
+  if (activePointers.size === 0) {
+    handleMouseUp();
+  }
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+canvas.addEventListener("pointerleave", (ev) => {
+  if (ev.pointerType === "mouse") handleMouseLeave();
+  // touch — не сбрасываем, может вернуться
+});
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
 /* ---------- dice (рандом промпт) ---------- */
 $("dice-btn").addEventListener("click", () => {
