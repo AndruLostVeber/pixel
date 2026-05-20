@@ -1,0 +1,27 @@
+# PixelForge backend deps
+# torch + torchvision — ставить отдельно через https://pytorch.org/get-started/locally
+# для NVIDIA Blackwell (RTX 50xx) нужен CUDA 12.8+:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+
+# generation (local SDXL+LoRA)
+diffusers>=0.30
+transformers>=4.40
+accelerate
+safetensors
+peft
+huggingface-hub
+hf_transfer
+
+# generation (NVIDIA Build / FLUX)
+requests
+
+# backend
+fastapi>=0.110
+uvicorn[standard]
+python-dotenv
+pydantic
+
+# image processing
+pillow
+numpy
+scikit-learn
