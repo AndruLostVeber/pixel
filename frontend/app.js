@@ -189,8 +189,9 @@ function selectColor(i) {
   document.querySelectorAll(".palette-cell").forEach((c) => {
     c.classList.toggle("selected", +c.dataset.idx === i);
   });
-  $("hint-btn").disabled = false;
-  $("autofill-btn").disabled = false;
+  const hintsOk = state.hintsAllowed !== false;
+  $("hint-btn").disabled = !hintsOk;
+  $("autofill-btn").disabled = !hintsOk;
   window.FX && FX.select();
 }
 
@@ -509,6 +510,7 @@ function loadResult(data) {
   $("preview-btn").disabled = false;
   $("reset-btn").disabled = false;
   $("download-btn").disabled = false;
+  // блокируем хинты согласно сложности (selectColor разрешит когда цвет выбран)
   $("hint-btn").disabled = true;
   $("autofill-btn").disabled = true;
 
@@ -519,6 +521,43 @@ function loadResult(data) {
 }
 
 /* ---------- init ---------- */
+
+/* ---------- difficulty ---------- */
+const DIFFICULTY = {
+  easy:   { grid: 24, colors: 8,  hints: true,  label: "Easy" },
+  normal: { grid: 32, colors: 12, hints: true,  label: "Normal" },
+  hard:   { grid: 48, colors: 18, hints: false, label: "Hard" },
+};
+function applyDifficulty(name) {
+  if (name === "custom") {
+    state.hintsAllowed = true;
+    return;
+  }
+  const d = DIFFICULTY[name];
+  if (!d) return;
+  $("grid_size").value = d.grid;
+  $("n_colors").value = d.colors;
+  state.hintsAllowed = d.hints;
+  // блокируем кнопки если уровень не позволяет
+  if (state.gridSize) {
+    $("hint-btn").disabled = !d.hints;
+    $("autofill-btn").disabled = !d.hints;
+  }
+  try { localStorage.setItem("pixelforge:difficulty", name); } catch (_) {}
+}
+$("difficulty").addEventListener("change", (e) => {
+  applyDifficulty(e.target.value);
+  FX.toast(`Режим: ${DIFFICULTY[e.target.value]?.label || "Custom"}`, { kind: "info" });
+});
+try {
+  const savedDiff = localStorage.getItem("pixelforge:difficulty");
+  if (savedDiff) {
+    $("difficulty").value = savedDiff;
+    applyDifficulty(savedDiff);
+  } else {
+    state.hintsAllowed = true;
+  }
+} catch (_) { state.hintsAllowed = true; }
 
 /* ---------- presets ---------- */
 const PRESETS = [

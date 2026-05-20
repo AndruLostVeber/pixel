@@ -20,6 +20,15 @@
         <option value="local">Local SDXL+LoRA</option>
       </select>
     </label>
+    <label title="Easy — мелкая сетка, кнопка-помощник. Hard — крупная сетка, без помощников.">
+      mode
+      <select id="difficulty">
+        <option value="easy">😊 Easy</option>
+        <option value="normal" selected>🎯 Normal</option>
+        <option value="hard">💀 Hard</option>
+        <option value="custom">⚙️ Custom</option>
+      </select>
+    </label>
     <label>grid <input id="grid_size" type="number" value="32" min="16" max="96" step="8" /></label>
     <label>colors <input id="n_colors" type="number" value="12" min="4" max="32" /></label>
     <button id="generate-btn">Generate ⚡</button>
