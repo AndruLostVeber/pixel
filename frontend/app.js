@@ -22,6 +22,10 @@ const state = {
   isDragging: false,
   dragErrorThisStroke: false,  // штрафуем только за первый клик в стрике
   hoverCell: null,             // {x,y} текущая клетка под курсором
+  // combo / pulse
+  streak: 0,
+  bestStreak: 0,
+  pulses: [],  // [{x,y,t0,color}], затухающая подсветка только что закрашенных
 };
 
 /* ---------- rendering ---------- */
@@ -75,6 +79,52 @@ function repaint() {
   drawFilledCells();
   drawGrid();
   drawNumbers();
+}
+
+const PULSE_MS = 450;
+function drawPulses() {
+  if (!state.pulses.length) return;
+  const now = performance.now();
+  const { cellPx } = state;
+  let alive = [];
+  for (const p of state.pulses) {
+    const t = (now - p.t0) / PULSE_MS;
+    if (t >= 1) continue;
+    alive.push(p);
+    const ease = 1 - Math.pow(1 - t, 3);     // ease-out cubic
+    const grow = cellPx * 0.55 * (1 - ease);
+    ctx.save();
+    ctx.globalAlpha = (1 - ease) * 0.85;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(
+      p.x * cellPx - grow / 2,
+      p.y * cellPx - grow / 2,
+      cellPx + grow,
+      cellPx + grow,
+    );
+    ctx.restore();
+  }
+  state.pulses = alive;
+}
+
+let animLoopRunning = false;
+function animLoop() {
+  if (state.pulses.length) {
+    // быстрая перерисовка зоны пульсов
+    drawFilledCells();
+    drawPulses();
+    drawGrid();
+    drawNumbers();
+    requestAnimationFrame(animLoop);
+  } else {
+    animLoopRunning = false;
+  }
+}
+function kickAnim() {
+  if (!animLoopRunning) {
+    animLoopRunning = true;
+    requestAnimationFrame(animLoop);
+  }
 }
 
 function flashCell(x, y, color, durationMs) {
@@ -144,9 +194,31 @@ function paintCell(x, y) {
     state.filledCells++;
     ctx.fillStyle = state.palette[state.selectedColor];
     ctx.fillRect(x * state.cellPx, y * state.cellPx, state.cellPx + 0.5, state.cellPx + 0.5);
+    state.pulses.push({ x, y, t0: performance.now(), color: state.palette[state.selectedColor] });
+    kickAnim();
+    state.streak++;
+    if (state.streak > state.bestStreak) state.bestStreak = state.streak;
+    updateStreak();
     return "hit";
   }
   return "miss";
+}
+
+function breakStreak() {
+  state.streak = 0;
+  updateStreak();
+}
+
+function updateStreak() {
+  const el = $("streak-count");
+  if (!el) return;
+  el.textContent = state.streak;
+  el.classList.remove("streak-flame", "streak-blaze", "streak-mega");
+  if (state.streak >= 25) el.classList.add("streak-mega");
+  else if (state.streak >= 10) el.classList.add("streak-blaze");
+  else if (state.streak >= 5) el.classList.add("streak-flame");
+  const best = $("best-streak");
+  if (best) best.textContent = state.bestStreak;
 }
 
 function handleMouseDown(ev) {
@@ -166,6 +238,7 @@ function handleMouseDown(ev) {
     state.errors++;
     state.dragErrorThisStroke = true;
     $("errors-count").textContent = state.errors;
+    breakStreak();
     flashCell(cell.x, cell.y, "rgba(255,80,80,0.85)", 220);
   }
 }
@@ -244,8 +317,11 @@ function handleReset() {
   state.filled = state.indices.map((row) => row.map(() => false));
   state.filledCells = 0;
   state.errors = 0;
+  state.streak = 0;
+  state.pulses = [];
   $("errors-count").textContent = 0;
   state.startedAt = performance.now();
+  updateStreak();
   updateProgress();
   updateRemaining();
   repaint();
@@ -319,6 +395,9 @@ function loadResult(data) {
   state.totalCells = data.grid_size * data.grid_size;
   state.previewB64 = data.preview_b64;
   state.startedAt = performance.now();
+  state.streak = 0;
+  state.pulses = [];
+  updateStreak();
 
   $("errors-count").textContent = 0;
   $("preview-btn").disabled = false;

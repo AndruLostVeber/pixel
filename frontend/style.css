@@ -76,6 +76,29 @@ main {
 #progress-fill { height: 100%; background: linear-gradient(90deg, #5b6cff, #b16cff); width: 0%; transition: width 0.25s; }
 .errors { font-size: 11px; color: #a06868; margin-top: 2px; }
 
+.stats-row { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.stat-chip {
+  font-size: 11px; padding: 3px 8px; border-radius: 4px;
+  background: #0e0f13; color: #aaa; border: 1px solid #2a2c38;
+  display: inline-flex; gap: 4px; align-items: center;
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+}
+.stat-chip.stat-err { color: #a06868; }
+#streak-count.streak-flame { color: #ffb347; }
+#streak-count.streak-blaze {
+  color: #ff7a00; font-weight: 700;
+  animation: chip-pop 0.4s ease-out;
+}
+#streak-count.streak-mega {
+  color: #fff; font-weight: 800; text-shadow: 0 0 10px #ff7a00;
+  animation: chip-pop 0.4s ease-out, blaze 1.2s ease-in-out infinite alternate;
+}
+@keyframes chip-pop { 0% { transform: scale(1.6); } 100% { transform: scale(1); } }
+@keyframes blaze {
+  0% { text-shadow: 0 0 6px #ff7a00; }
+  100% { text-shadow: 0 0 18px #ffb347, 0 0 4px #fff; }
+}
+
 .palette {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
   max-height: 380px; overflow-y: auto;
