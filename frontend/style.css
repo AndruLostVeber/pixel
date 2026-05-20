@@ -123,6 +123,13 @@ main {
 .actions { display: flex; flex-direction: column; gap: 6px; }
 .actions button { background: #2a2c38; }
 .actions button:hover:not(:disabled) { background: #353749; }
+.sound-toggle {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; margin-top: 4px;
+  font-size: 12px; color: #aaa; cursor: pointer;
+  background: #0e0f13; border: 1px solid #2a2c38; border-radius: 6px;
+}
+.sound-toggle input { cursor: pointer; }
 
 .modal {
   position: fixed; inset: 0; background: rgba(0,0,0,0.7);

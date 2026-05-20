@@ -173,6 +173,7 @@ function selectColor(i) {
   });
   $("hint-btn").disabled = false;
   $("autofill-btn").disabled = false;
+  window.FX && FX.select();
 }
 
 /* ---------- interactions ---------- */
@@ -196,9 +197,15 @@ function paintCell(x, y) {
     ctx.fillRect(x * state.cellPx, y * state.cellPx, state.cellPx + 0.5, state.cellPx + 0.5);
     state.pulses.push({ x, y, t0: performance.now(), color: state.palette[state.selectedColor] });
     kickAnim();
+    const prevStreak = state.streak;
     state.streak++;
     if (state.streak > state.bestStreak) state.bestStreak = state.streak;
     updateStreak();
+    window.FX && FX.hit();
+    if (state.streak === 5 || state.streak === 10 || state.streak === 25 || state.streak === 50) {
+      const level = state.streak >= 25 ? "big" : state.streak >= 10 ? "med" : "small";
+      window.FX && FX.milestone(level);
+    }
     return "hit";
   }
   return "miss";
@@ -239,6 +246,7 @@ function handleMouseDown(ev) {
     state.dragErrorThisStroke = true;
     $("errors-count").textContent = state.errors;
     breakStreak();
+    window.FX && FX.miss();
     flashCell(cell.x, cell.y, "rgba(255,80,80,0.85)", 220);
   }
 }
@@ -343,6 +351,8 @@ function onFinish() {
   $("finish-errors").textContent = state.errors;
   $("finish-preview").src = "data:image/png;base64," + state.previewB64;
   $("finish-modal").classList.remove("hidden");
+  window.FX && FX.finish();
+  window.FX && FX.confetti();
 }
 
 /* ---------- generation ---------- */
@@ -424,6 +434,14 @@ $("preview-btn").addEventListener("click", handlePreview);
 $("reset-btn").addEventListener("click", handleReset);
 $("finish-close").addEventListener("click", () => $("finish-modal").classList.add("hidden"));
 $("prompt").addEventListener("keydown", (e) => { if (e.key === "Enter") generate(); });
+$("sound-toggle").addEventListener("change", (e) => {
+  window.FX && FX.setEnabled(e.target.checked);
+  try { localStorage.setItem("pixelforge:sound", e.target.checked ? "1" : "0"); } catch (_) {}
+});
+try {
+  const saved = localStorage.getItem("pixelforge:sound");
+  if (saved === "0") { $("sound-toggle").checked = false; window.FX && FX.setEnabled(false); }
+} catch (_) {}
 
 clearCanvas();
 ctx.fillStyle = "#888";
