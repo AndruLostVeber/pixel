@@ -107,14 +107,32 @@ function drawPulses() {
   state.pulses = alive;
 }
 
+function drawHover() {
+  const h = state.hoverCell;
+  if (!h || state.selectedColor == null) return;
+  if (state.filled[h.y][h.x]) return;
+  const { cellPx } = state;
+  const right = state.indices[h.y][h.x] === state.selectedColor;
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = right ? state.palette[state.selectedColor] : "#ff5b6c";
+  ctx.fillRect(h.x * cellPx, h.y * cellPx, cellPx, cellPx);
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = right ? state.palette[state.selectedColor] : "#ff5b6c";
+  ctx.strokeRect(h.x * cellPx + 1, h.y * cellPx + 1, cellPx - 2, cellPx - 2);
+  ctx.restore();
+}
+
 let animLoopRunning = false;
 function animLoop() {
-  if (state.pulses.length) {
-    // быстрая перерисовка зоны пульсов
+  // всегда перерисуй если есть pulses ИЛИ hover
+  if (state.pulses.length || state.hoverCell || state.isDragging) {
     drawFilledCells();
     drawPulses();
     drawGrid();
     drawNumbers();
+    drawHover();
     requestAnimationFrame(animLoop);
   } else {
     animLoopRunning = false;
@@ -254,7 +272,9 @@ function handleMouseDown(ev) {
 
 function handleMouseMove(ev) {
   const cell = cellFromEvent(ev);
+  const prev = state.hoverCell;
   state.hoverCell = cell;
+  if (!prev || !cell || prev.x !== cell.x || prev.y !== cell.y) kickAnim();
   if (state.isDragging && state.selectedColor != null && cell) {
     // во время drag — только закрашиваем правильные клетки, без штрафа за случайные мазки по неправильным
     const res = paintCell(cell.x, cell.y);
@@ -275,6 +295,7 @@ function handleMouseUp() {
 function handleMouseLeave() {
   state.isDragging = false;
   state.hoverCell = null;
+  repaint();
 }
 
 function handleHint() {
