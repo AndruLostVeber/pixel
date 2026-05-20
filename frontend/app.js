@@ -449,6 +449,55 @@ function loadResult(data) {
 
 /* ---------- init ---------- */
 
+/* ---------- presets ---------- */
+const PRESETS = [
+  ["🐉", "red dragon"],
+  ["⚔️", "diamond sword"],
+  ["🏰", "medieval castle"],
+  ["👹", "cute green slime monster"],
+  ["🍄", "magic mushroom"],
+  ["💎", "blue gem stone"],
+  ["🌳", "ancient oak tree"],
+  ["🎃", "halloween pumpkin"],
+  ["🧙", "wise wizard with staff"],
+  ["🐱", "fluffy orange cat"],
+  ["🤖", "retro robot"],
+  ["🚀", "rocket ship"],
+  ["🐟", "rainbow tropical fish"],
+  ["🌺", "tropical flower"],
+  ["⚓", "anchor with rope"],
+  ["🍕", "pizza slice"],
+  ["🍔", "burger"],
+  ["☕", "coffee cup"],
+  ["🦄", "magical unicorn"],
+  ["🗡️", "katana sword"],
+  ["🏹", "elven bow with arrow"],
+  ["🛡️", "knight shield"],
+  ["💀", "skull"],
+  ["🍷", "wine bottle"],
+  ["📦", "wooden crate"],
+  ["🗝️", "old skeleton key"],
+];
+
+function buildPresets() {
+  const root = $("presets");
+  if (!root) return;
+  PRESETS.forEach(([emoji, prompt]) => {
+    const b = document.createElement("button");
+    b.className = "preset-chip";
+    b.type = "button";
+    b.title = prompt;
+    b.innerHTML = `<span class="preset-emoji">${emoji}</span><span class="preset-label">${prompt.split(",")[0]}</span>`;
+    b.addEventListener("click", () => {
+      $("prompt").value = prompt;
+      $("prompt").focus();
+      window.FX && FX.select();
+    });
+    root.appendChild(b);
+  });
+}
+buildPresets();
+
 canvas.addEventListener("mousedown", handleMouseDown);
 canvas.addEventListener("mousemove", handleMouseMove);
 window.addEventListener("mouseup", handleMouseUp);
