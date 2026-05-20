@@ -656,10 +656,9 @@ function applyDifficulty(name) {
   $("grid_size").value = d.grid;
   $("n_colors").value = d.colors;
   state.hintsAllowed = d.hints;
-  // блокируем кнопки если уровень не позволяет
+  // блокируем кнопку подсказки если уровень не позволяет
   if (state.gridSize) {
     $("hint-btn").disabled = !d.hints;
-    $("autofill-btn").disabled = !d.hints;
   }
   try { localStorage.setItem("pixelforge:difficulty", name); } catch (_) {}
 }
